@@ -12,19 +12,24 @@ async function getMemoryByID(memory_id) {
     return result;
 }
 
-async function createMemory(memory_id, title, content, created_at, updated_at, user_id, creator_id) {
+async function createMemory(title, content, user_id, creator_id) {
     const [result] = await pool.query(
-        'INSERT INTO MEMORY (memory_id, title, content, created_at, updated_at, user_id, creator_id) VALUES (?,?,?,?,?,?,?)',
-        [memory_id, title, content, created_at, updated_at, user_id, creator_id]
+        'INSERT INTO MEMORY (title, content, user_id, creator_id) VALUES (?, ?, ?, ?)',
+        [title, content, user_id, creator_id]
     );
-    const id = result.insertId;
-    return getMemoryByID(id);
+    return getMemoryByID(result.insertId);
 }
 
-async function updateMemory(memory_id, title, content, created_at, updated_at, user_id, creator_id) {
+async function updateMemory(memory_id, title, content, user_id, creator_id) {
     const [result] = await pool.query(
-        'UPDATE MEMORY SET title = ?, content = ?, created_at = ?, updated_at = ?, user_id = ?, creator_id = ? WHERE memory_id = ?',
-        [title, content, created_at, updated_at, user_id, creator_id, memory_id]
+        `UPDATE MEMORY 
+         SET title = ?, 
+             content = ?, 
+             user_id = ?, 
+             creator_id = ?, 
+             updated_at = CURRENT_TIMESTAMP 
+         WHERE memory_id = ?`,
+        [title, content, user_id, creator_id, memory_id]
     );
     return getMemoryByID(memory_id);
 }

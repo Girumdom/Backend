@@ -23,18 +23,28 @@ router.get('/:id', async (req, res) => {
 });
 
 // CREATE or ADD A NEW MEMORY
-router.post('/', async(req, res) => {
-    const { memory_id, title, content, created_at, updated_at, user_id, creator_id } = req.body;
-    const memory = await createMemory(memory_id, title, content, created_at, updated_at, user_id, creator_id);
-    res.send(memory);
+router.post('/', async (req, res) => {
+    const { title, content, user_id, creator_id } = req.body; 
+    try {
+        const memory = await createMemory(title, content, user_id, creator_id);
+        res.status(201).send(memory); // HTTP 201 for "Created"
+    } catch (error) {
+        console.error("Error creating memory:", error);
+        res.status(500).send({ error: "Failed to create memory" });
+    }
 });
 
 //UPDATE AN EXISTING MEMORY
-router.put('/:id', async(req, res) => {
+router.put('/:id', async (req, res) => {
     const id = req.params.id;
-    const { title, content, created_at, updated_at, user_id, creator_id } = req.body;
-    const memory = await updateMemory(id, title, content, created_at, updated_at, user_id, creator_id);
-    res.send(memory);
+    const { title, content, user_id, creator_id } = req.body; 
+    try {
+        const memory = await updateMemory(id, title, content, user_id, creator_id);
+        res.status(200).send(memory);
+    } catch (error) {
+        console.error("Error updating memory:", error);
+        res.status(500).send({ error: "Failed to update memory" });
+    }
 });
 
 //DELETE or REMOVE AN EXISTING MEMORY

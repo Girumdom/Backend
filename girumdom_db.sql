@@ -1,0 +1,247 @@
+SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
+SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
+SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+
+CREATE SCHEMA IF NOT EXISTS girumdom DEFAULT CHARACTER SET utf8mb4;
+USE girumdom;
+
+CREATE TABLE IF NOT EXISTS girumdom.`USER` (
+  user_id INT NOT NULL AUTO_INCREMENT,
+  username VARCHAR(45) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  user_type ENUM('main', 'assistant') NOT NULL DEFAULT 'main',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login DATETIME NULL,
+  main_user_id INT NULL,
+  PRIMARY KEY (user_id),
+  UNIQUE INDEX username_UNIQUE (username),
+  UNIQUE INDEX email_UNIQUE (email),
+  INDEX fk_USER_USER1_idx (main_user_id),
+  CONSTRAINT fk_USER_USER1
+    FOREIGN KEY (main_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`MEMORY` (
+  memory_id INT NOT NULL AUTO_INCREMENT,
+  title VARCHAR(100) NOT NULL,
+  content TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  user_id INT NOT NULL,
+  creator_id INT NOT NULL,
+  PRIMARY KEY (memory_id),
+  INDEX fk_MEMORY_USER_idx (user_id),
+  INDEX fk_MEMORY_USER1_idx (creator_id),
+  CONSTRAINT fk_MEMORY_USER
+    FOREIGN KEY (user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_MEMORY_USER1
+    FOREIGN KEY (creator_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`COLLABORATION` (
+  collaboration_id INT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  main_user_id INT NOT NULL,
+  PRIMARY KEY (collaboration_id),
+  INDEX fk_COLLABORATION_USER1_idx (main_user_id),
+  CONSTRAINT fk_COLLABORATION_USER1
+    FOREIGN KEY (main_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`USER_COLLABORATION` (
+  user_id INT NOT NULL,
+  collaboration_id INT NOT NULL,
+  role ENUM('owner', 'editor', 'viewer') NOT NULL DEFAULT 'editor',
+  joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, collaboration_id),
+  INDEX fk_USER_has_COLLABORATION_COLLABORATION1_idx (collaboration_id),
+  INDEX fk_USER_has_COLLABORATION_USER1_idx (user_id),
+  CONSTRAINT fk_USER_has_COLLABORATION_USER1
+    FOREIGN KEY (user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_USER_has_COLLABORATION_COLLABORATION1
+    FOREIGN KEY (collaboration_id)
+    REFERENCES girumdom.`COLLABORATION` (collaboration_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`COLLABORATION_MEMORY` (
+  collaboration_id INT NOT NULL,
+  memory_id INT NOT NULL,
+  added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  added_by_user_id INT NOT NULL,
+  PRIMARY KEY (collaboration_id, memory_id),
+  INDEX fk_COLLABORATION_has_MEMORY_MEMORY1_idx (memory_id),
+  INDEX fk_COLLABORATION_has_MEMORY_COLLABORATION1_idx (collaboration_id),
+  INDEX fk_COLLABORATION_MEMORY_USER1_idx (added_by_user_id),
+  CONSTRAINT fk_COLLABORATION_has_MEMORY_COLLABORATION1
+    FOREIGN KEY (collaboration_id)
+    REFERENCES girumdom.`COLLABORATION` (collaboration_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_COLLABORATION_has_MEMORY_MEMORY1
+    FOREIGN KEY (memory_id)
+    REFERENCES girumdom.`MEMORY` (memory_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_COLLABORATION_MEMORY_USER1
+    FOREIGN KEY (added_by_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`REMINDER` (
+  reminder_id INT NOT NULL AUTO_INCREMENT,
+  title VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  reminder_date DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  is_completed TINYINT NOT NULL DEFAULT 0,
+  memory_id INT NOT NULL,
+  created_by_user_id INT NOT NULL,
+  PRIMARY KEY (reminder_id),
+  INDEX fk_REMINDER_MEMORY1_idx (memory_id),
+  INDEX fk_REMINDER_USER1_idx (created_by_user_id),
+  CONSTRAINT fk_REMINDER_MEMORY1
+    FOREIGN KEY (memory_id)
+    REFERENCES girumdom.`MEMORY` (memory_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_REMINDER_USER1
+    FOREIGN KEY (created_by_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`AUDIO` (
+  audio_id INT NOT NULL AUTO_INCREMENT,
+  filename VARCHAR(255) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  file_size INT NOT NULL,
+  duration INT NULL,
+  uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  memory_id INT NOT NULL,
+  uploaded_by_user_id INT NOT NULL,
+  PRIMARY KEY (audio_id),
+  INDEX fk_AUDIO_MEMORY1_idx (memory_id),
+  INDEX fk_AUDIO_USER1_idx (uploaded_by_user_id),
+  CONSTRAINT fk_AUDIO_MEMORY1
+    FOREIGN KEY (memory_id)
+    REFERENCES girumdom.`MEMORY` (memory_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_AUDIO_USER1
+    FOREIGN KEY (uploaded_by_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`PHOTO_IMAGE` (
+  photo_id INT NOT NULL AUTO_INCREMENT,
+  filename VARCHAR(255) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  file_size INT NOT NULL,
+  width INT NULL,
+  height INT NULL,
+  uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  memory_id INT NOT NULL,
+  uploaded_by_user_id INT NOT NULL,
+  PRIMARY KEY (photo_id),
+  INDEX fk_PHOTO_IMAGE_MEMORY1_idx (memory_id),
+  INDEX fk_PHOTO_IMAGE_USER1_idx (uploaded_by_user_id),
+  CONSTRAINT fk_PHOTO_IMAGE_MEMORY1
+    FOREIGN KEY (memory_id)
+    REFERENCES girumdom.`MEMORY` (memory_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_PHOTO_IMAGE_USER1
+    FOREIGN KEY (uploaded_by_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`STORYTELLER` (
+  storyteller_id INT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id INT NOT NULL,
+  PRIMARY KEY (storyteller_id),
+  INDEX fk_STORYTELLER_USER1_idx (user_id),
+  CONSTRAINT fk_STORYTELLER_USER1
+    FOREIGN KEY (user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`STORYTELLER_MEMORY` (
+  storyteller_id INT NOT NULL,
+  memory_id INT NOT NULL,
+  used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (storyteller_id, memory_id),
+  INDEX fk_STORYTELLER_has_MEMORY_MEMORY1_idx (memory_id),
+  INDEX fk_STORYTELLER_has_MEMORY_STORYTELLER1_idx (storyteller_id),
+  CONSTRAINT fk_STORYTELLER_has_MEMORY_STORYTELLER1
+    FOREIGN KEY (storyteller_id)
+    REFERENCES girumdom.`STORYTELLER` (storyteller_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_STORYTELLER_has_MEMORY_MEMORY1
+    FOREIGN KEY (memory_id)
+    REFERENCES girumdom.`MEMORY` (memory_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS girumdom.`ASSISTANT_PERMISSION` (
+  main_user_id INT NOT NULL,
+  assistant_user_id INT NOT NULL,
+  can_create_memory TINYINT NOT NULL DEFAULT 1,
+  can_edit_memory TINYINT NOT NULL DEFAULT 0,
+  can_delete_memory TINYINT NOT NULL DEFAULT 0,
+  can_create_reminder TINYINT NOT NULL DEFAULT 1,
+  can_upload_media TINYINT NOT NULL DEFAULT 0,
+  granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  modified_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (main_user_id, assistant_user_id),
+  INDEX fk_USER_has_USER_USER2_idx (assistant_user_id),
+  INDEX fk_USER_has_USER_USER1_idx (main_user_id),
+  CONSTRAINT fk_USER_has_USER_USER1
+    FOREIGN KEY (main_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_USER_has_USER_USER2
+    FOREIGN KEY (assistant_user_id)
+    REFERENCES girumdom.`USER` (user_id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+
+SET SQL_MODE=@OLD_SQL_MODE;
+SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;

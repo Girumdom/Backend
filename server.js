@@ -16,8 +16,10 @@ app.get('/', (req, res) => {
 
 // ALL CONTROLLERS
 const memoryController = require('./api/controllers/memory_controller');
+const storytellerController = require('./api/controllers/storyteller_controller');
 
 app.use('/api/memory', memoryController);
+app.use('/api/storyteller', storytellerController);
 
 const PORT = 3000
 

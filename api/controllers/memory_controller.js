@@ -39,8 +39,8 @@ router.get('/:id', async (req, res) => {
 // POST /memory - CREATE or ADD A NEW MEMORY
 router.post('/', async (req, res) => {
     try {
-        const { title, content, user_id, creator_id } = req.body; 
-        const memory = await createMemory(title, content, user_id, creator_id);
+        const { title, content, user_id, creator_id, date_of_event } = req.body; 
+        const memory = await createMemory(title, content, user_id, creator_id, date_of_event);
         res.status(200).send(memory);
     } catch (error) {
         console.error("Error creating memory:", error);
@@ -50,10 +50,9 @@ router.post('/', async (req, res) => {
 
 // PUT /memory/:id - UPDATE AN EXISTING MEMORY
 router.put('/:id', async (req, res) => {
-    
     try {
-        const { title, content } = req.body; 
-        const memory = await updateMemory(req.params.id, title, content);
+        const { title, content, date_of_event } = req.body; 
+        const memory = await updateMemory(req.params.id, title, content, date_of_event);
         res.status(200).send(memory);
     } catch (error) {
         console.error("Error updating memory:", error);

@@ -17,7 +17,11 @@ app.use(express.json());
 const uploadsDir = path.join(__dirname, 'api', 'uploads'); // Define the uploads directory path
 fs.mkdirSync(uploadsDir, { recursive: true }); // Ensure the directory exists
 
-app.use('/uploads', express.static(uploadsDir)); // Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'api', 'uploads'), {
+    setHeaders: (res) => {
+      res.set("Access-Control-Allow-Origin", "*");
+    }
+  }));
 
 app.get('/', (req, res) => {
     res.send('The app is up and running.')

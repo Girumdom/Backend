@@ -1,10 +1,16 @@
-// middleware/upload.js
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs').promises; // Add this at the top
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads'));
+  destination: async (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../uploads');
+    try {
+      await fs.mkdir(uploadPath, { recursive: true }); // Creates if missing
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
   filename: (req, file, cb) => {
     const safeName = Date.now() + '_' + 

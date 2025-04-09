@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('./api/connections/pool');
+const pool = require('../connections/pool');
 const fs = require('fs').promises;
 const path = require('path');
 const { 

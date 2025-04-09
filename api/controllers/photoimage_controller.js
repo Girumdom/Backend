@@ -118,34 +118,29 @@ router.post('/base64', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Extract base64 data
-    const matches = image_data.match(/^data:image\/(\w+);base64,(.+)$/);
-    if (!matches) {
-      return res.status(400).json({ error: 'Invalid base64 image data' });
-    }
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(image_data, {
+      folder: 'girumdom_memories',
+      public_id: filename ? filename.replace(/\.[^/.]+$/, "") : undefined,
+      // Add any transformations you want
+      transformation: [
+        { width: 1200, height: 800, crop: "limit" },
+        { quality: "auto" }
+      ]
+    });
 
-    const fileExt = matches[1] || 'jpg';
-    const fileBuffer = Buffer.from(matches[2], 'base64');
-    const fileSize = fileBuffer.length;
-    const finalFilename = filename || `memory-${memory_id}-${Date.now()}.${fileExt}`;
-    const filePath = `/uploads/${finalFilename}`;
-    const fullPath = path.join(__dirname, '..', 'uploads', finalFilename);
-
-    // Save file
-    await fs.writeFile(fullPath, fileBuffer);
-
-    // Create DB record
+    // Create DB record with Cloudinary URL
     const image = await createImage({
-      filename: finalFilename,
-      file_path: filePath,
-      file_size: fileSize,
+      filename: filename || `memory-${memory_id}-${Date.now()}`,
+      file_path: result.secure_url,
+      file_size: result.bytes,
       memory_id,
-      user_id: req.user?.id || 1
+      user_id: req.user?.id || 1 // Use actual user ID from auth if available
     });
 
     res.status(201).json(image);
   } catch (error) {
-    console.error('Base64 upload error:', error);
+    console.error('Cloudinary upload error:', error);
     res.status(500).json({ 
       error: 'Image upload failed',
       details: error.message 

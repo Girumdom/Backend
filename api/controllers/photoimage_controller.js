@@ -3,12 +3,9 @@ const router = express.Router();
 const pool = require('../connections/pool');
 const fs = require('fs').promises;
 const path = require('path');
-const { 
-  getImagesByMemoryID,
-  createImage,
-  deleteImage
-} = require('../connections/photoImage');
+const { getImagesByMemoryID, createImage, deleteImage } = require('../connections/photoImage');
 const upload = require('../middleware/upload');
+const { cloudinary } = require('../connections/cloudinary');
 
 // ======================
 // MIDDLEWARE
@@ -23,7 +20,6 @@ const validateImage = async (req, res, next) => {
     await fs.unlink(req.file.path).catch(console.error);
     return res.status(400).json({ error: 'Only JPEG/PNG images allowed' });
   }
-
   next();
 };
 
@@ -34,20 +30,12 @@ const validateImage = async (req, res, next) => {
 // GET all images for a memory
 router.get('/memory/:memory_id', async (req, res) => {
   try {
-    const memories = await pool.query(`
-      SELECT m.*, 
-        JSON_ARRAYAGG(
-          JSON_OBJECT(
-            'photo_id', p.photo_id,
-            'file_path', p.file_path
-          )
-        ) AS images
-      FROM MEMORY m
-      LEFT JOIN PHOTO_IMAGE p ON m.memory_id = p.memory_id
-      WHERE m.user_id = ?
-      GROUP BY m.memory_id
-    `, [req.params.user_id]);
-    res.json(memories);
+    const [images] = await getImagesByMemoryID(req.params.memory_id);
+    
+    res.status(200).json({
+      memory_id: req.params.memory_id,
+      images
+    });
   } catch (error) {
     res.status(500).json({ 
       error: 'Failed to fetch images',
@@ -56,34 +44,45 @@ router.get('/memory/:memory_id', async (req, res) => {
   }
 });
 
+// router.get('/memory/:memory_id', async (req, res) => {
+//   try {
+//     const [images] = await pool.query(`
+//       SELECT photo_id, file_path, file_size, filename
+//       FROM PHOTO_IMAGE
+//       WHERE memory_id = ?
+//     `, [req.params.memory_id]);
+
+//     res.json({ memory_id: req.params.memory_id, images });
+//   } catch (error) {
+//     res.status(500).json({ 
+//       error: 'Failed to fetch images',
+//       details: error.message 
+//     });
+//   }
+// });
+
 // POST upload new image
 router.post('/', 
   upload.single('image'), 
   validateImage,
   async (req, res) => {
     try {
-      console.log('Uploaded file details:', {
-        filename: req.file.originalname,
-        path: req.file.path,
-        size: req.file.size,
-        memory_id: req.body.memory_id,
-        user_id: req.user?.id || 1
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'girumdom_memories' // optional folder name in Cloudinary
       });
       
       const image = await createImage({
         filename: req.file.originalname,
-        file_path: `/uploads/${req.file.filename}`,
+        file_path: result.secure_url, // ✅ cloud-based image URL
         file_size: req.file.size,
         memory_id: req.body.memory_id,
-        user_id: req.user?.id || 1 // Temp hardcoded (replace with auth later)
-         
+        user_id: req.user?.id || 1
       });
-      console.log('Received file for memory_id:', req.body.memory_id, 'User ID:', req.user?.id || 1);
+      
+
       res.status(201).json(image);
     } catch (error) {
       console.error('UPLOAD FAILED:', error);
-      // Cleanup uploaded file if DB operation fails
-      await fs.unlink(req.file.path).catch(console.error);
       res.status(500).json({ 
         error: 'Image upload failed',
         details: error.message 
@@ -91,6 +90,7 @@ router.post('/',
     }
   }
 );
+
 
 // DELETE image
 router.delete('/:id', async (req, res) => {

@@ -3,6 +3,7 @@ const cors = require('cors');
 const app = express();
 const pool = require('./api/connections/pool');
 const path = require('path');
+const fs = require('fs').promises;
 
 const dotenv = require('dotenv');
 

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const pool = require('./api/connections/pool');
+const path = require('path');
 
 const dotenv = require('dotenv');
 
@@ -9,7 +10,7 @@ dotenv.config();
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads')); // Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'api', 'uploads'))); // Serve static files from the uploads directory
 
 app.get('/', (req, res) => {
     res.send('The app is up and running.')

@@ -33,8 +33,20 @@ const validateImage = async (req, res, next) => {
 // GET all images for a memory
 router.get('/memory/:memory_id', async (req, res) => {
   try {
-    const images = await getImagesByMemoryID(req.params.memory_id);
-    res.status(200).json(images);
+    const memories = await pool.query(`
+      SELECT m.*, 
+        JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'photo_id', p.photo_id,
+            'file_path', p.file_path
+          )
+        ) AS images
+      FROM MEMORY m
+      LEFT JOIN PHOTO_IMAGE p ON m.memory_id = p.memory_id
+      WHERE m.user_id = ?
+      GROUP BY m.memory_id
+    `, [req.params.user_id]);
+    res.json(memories);
   } catch (error) {
     res.status(500).json({ 
       error: 'Failed to fetch images',

@@ -9,6 +9,7 @@ dotenv.config();
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads')); // Serve static files from the uploads directory
 
 app.get('/', (req, res) => {
     res.send('The app is up and running.')
@@ -17,9 +18,11 @@ app.get('/', (req, res) => {
 // ALL CONTROLLERS
 const memoryController = require('./api/controllers/memory_controller');
 const storytellerController = require('./api/controllers/storyteller_controller');
+const photoImageController = require('./api/controllers/photoimage_controller');
 
 app.use('/api/memory', memoryController);
 app.use('/api/storyteller', storytellerController);
+app.use('/api/images', photoImageController);
 
 const PORT = 3000
 

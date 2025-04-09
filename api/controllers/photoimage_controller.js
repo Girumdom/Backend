@@ -85,4 +85,49 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Add this new route for base64 uploads
+router.post('/base64', async (req, res) => {
+  try {
+    const { image_data, memory_id, filename } = req.body;
+    
+    // Validate required fields
+    if (!image_data || !memory_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Extract base64 data
+    const matches = image_data.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!matches) {
+      return res.status(400).json({ error: 'Invalid base64 image data' });
+    }
+
+    const fileExt = matches[1] || 'jpg';
+    const fileBuffer = Buffer.from(matches[2], 'base64');
+    const fileSize = fileBuffer.length;
+    const finalFilename = filename || `memory-${memory_id}-${Date.now()}.${fileExt}`;
+    const filePath = `/uploads/${finalFilename}`;
+    const fullPath = path.join(__dirname, '..', 'uploads', finalFilename);
+
+    // Save file
+    await fs.writeFile(fullPath, fileBuffer);
+
+    // Create DB record
+    const image = await createImage({
+      filename: finalFilename,
+      file_path: filePath,
+      file_size: fileSize,
+      memory_id,
+      user_id: req.user?.id || 1
+    });
+
+    res.status(201).json(image);
+  } catch (error) {
+    console.error('Base64 upload error:', error);
+    res.status(500).json({ 
+      error: 'Image upload failed',
+      details: error.message 
+    });
+  }
+});
+
 module.exports = router;

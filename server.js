@@ -8,9 +8,12 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-app.use(cors());
+app.use(cors({
+    exposedHeaders: ['Content-Type'],
+  }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'api', 'uploads'))); // Serve static files from the uploads directory
+fs.mkdirSync(uploadsDir, { recursive: true });
 
 app.get('/', (req, res) => {
     res.send('The app is up and running.')

@@ -3,7 +3,7 @@ const cors = require('cors');
 const app = express();
 const pool = require('./api/connections/pool');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
 
 const dotenv = require('dotenv');
 
@@ -11,10 +11,13 @@ dotenv.config();
 
 app.use(cors({
     exposedHeaders: ['Content-Type'],
-  }));
+}));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'api', 'uploads'))); // Serve static files from the uploads directory
-fs.mkdirSync(uploadsDir, { recursive: true });
+
+const uploadsDir = path.join(__dirname, 'api', 'uploads'); // Define the uploads directory path
+fs.mkdirSync(uploadsDir, { recursive: true }); // Ensure the directory exists
+
+app.use('/uploads', express.static(uploadsDir)); // Serve static files from the uploads directory
 
 app.get('/', (req, res) => {
     res.send('The app is up and running.')
@@ -29,15 +32,15 @@ app.use('/api/memory', memoryController);
 app.use('/api/storyteller', storytellerController);
 app.use('/api/images', photoImageController);
 
-const PORT = 3000
+const PORT = 3000;
 
 async function testConnection() {
     try {
-      const connection = await pool.getConnection();
-      console.log('Database connection successful');
-      connection.release();
+        const connection = await pool.getConnection();
+        console.log('Database connection successful');
+        connection.release();
     } catch (error) {
-      console.error('Database connection failed:', error);
+        console.error('Database connection failed:', error);
     }
 }
 testConnection();
@@ -59,4 +62,3 @@ const shutdown = () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-

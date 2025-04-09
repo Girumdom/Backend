@@ -49,16 +49,26 @@ router.post('/',
   validateImage,
   async (req, res) => {
     try {
+      console.log('Uploaded file details:', {
+        filename: req.file.originalname,
+        path: req.file.path,
+        size: req.file.size,
+        memory_id: req.body.memory_id,
+        user_id: req.user?.id || 1
+      });
+      
       const image = await createImage({
         filename: req.file.originalname,
         file_path: `/uploads/${req.file.filename}`,
         file_size: req.file.size,
         memory_id: req.body.memory_id,
         user_id: req.user?.id || 1 // Temp hardcoded (replace with auth later)
+         
       });
-
+      console.log('Received file for memory_id:', req.body.memory_id, 'User ID:', req.user?.id || 1);
       res.status(201).json(image);
     } catch (error) {
+      console.error('UPLOAD FAILED:', error);
       // Cleanup uploaded file if DB operation fails
       await fs.unlink(req.file.path).catch(console.error);
       res.status(500).json({ 

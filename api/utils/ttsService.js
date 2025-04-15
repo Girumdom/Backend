@@ -16,6 +16,7 @@ async function initializeTTS() {
 
 // Generate TTS and save to DB (AUDIO table)
 async function generateTTS(text, memory_id, user_id = 1) {
+  console.log("generateTTS called with:", text, memory_id, user_id);
   await initializeTTS();
 
   // Check if audio exists for this memory_id
@@ -36,7 +37,11 @@ async function generateTTS(text, memory_id, user_id = 1) {
   // Save temporarily (required for Cloudinary upload)
   const tempFilePath = path.join(__dirname, `../../temp_uploads/tts_${memory_id}_${Date.now()}.wav`);
   fs.mkdirSync(path.dirname(tempFilePath), { recursive: true });
-  fs.writeFileSync(tempFilePath, Buffer.from(waveform));
+  
+  const floatArray = new Float32Array(waveform);
+  const buffer = Buffer.from(floatArray.buffer);
+  fs.writeFileSync(tempFilePath, buffer);
+
 
   // delete the temporary files
   fs.unlinkSync(tempFilePath);
@@ -44,6 +49,11 @@ async function generateTTS(text, memory_id, user_id = 1) {
   // Store in AUDIO table
   const duration = Math.ceil(waveform.length / model.config.sampling_rate);
 
+  const cloudinaryResult = await cloudinary.uploader.upload(tempFilePath, {
+    resource_type: "video", // audio files are treated as video by Cloudinary
+    folder: "tts_audio",
+  });
+  
   await pool.query(
     `INSERT INTO AUDIO 
      (filename, file_path, file_size, duration, memory_id, uploaded_by_user_id) 

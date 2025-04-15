@@ -3,7 +3,7 @@ const { generateTTS } = require('../utils/ttsService');
 
 //Generate and upload TTS
 async function createMemoryTTS(memory_id, text, user_id = 1) {
-    const audioUrl = await generateTTS(memory_id, text, user_id);
+    const audioUrl = await generateTTS(text, memory_id, user_id);
     return audioUrl;
 }
 

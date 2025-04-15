@@ -8,7 +8,8 @@ router.post('/', async (req, res) => {
   try {
     const { text, memory_id, user_id } = req.body;
     const audioUrl = await createMemoryTTS(memory_id, text, user_id);
-    res.status(200).json({ url: audioUrl });
+    // res.status(200).json({ url: audioUrl });
+    res.send(audioUrl); // this avoids returning JSON so the frontend can easily fetch the URL string
   } catch (error) {
     console.error("TTS generation failed:", error);
     res.status(500).json({ error: "Failed to generate TTS" });

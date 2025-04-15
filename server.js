@@ -27,14 +27,16 @@ app.get('/', (req, res) => {
     res.send('The app is up and running.')
 });
 
-// ALL CONTROLLERS
-const memoryController = require('./api/controllers/memory_controller');
-const storytellerController = require('./api/controllers/storyteller_controller');
-const photoImageController = require('./api/controllers/photoimage_controller');
+// ALL ROUTERS
+const memoryRouter = require('./api/controllers/memory_controller');
+const storytellerRouter = require('./api/controllers/storyteller_controller');
+const photoImageRouter = require('./api/controllers/photoimage_controller');
+const ttsRouter = require('./api/controllers/tts_controller');
 
-app.use('/api/memory', memoryController);
-app.use('/api/storyteller', storytellerController);
-app.use('/api/images', photoImageController);
+app.use('/api/memory', memoryRouter);
+app.use('/api/storyteller', storytellerRouter);
+app.use('/api/images', photoImageRouter);
+app.use('api/tts', ttsRouter);
 
 const PORT = 3000;
 

@@ -4,6 +4,7 @@ const { createMemoryTTS, getTTSByMemoryID } = require('../connections/tts');
 
 // POST /api/tts - Generate TTS
 router.post('/', async (req, res) => {
+  console.log("POST /api/tts triggered");
   try {
     const { text, memory_id, user_id } = req.body;
     const audioUrl = await createMemoryTTS(memory_id, text, user_id);

@@ -36,7 +36,7 @@ const ttsRouter = require('./api/controllers/tts_controller');
 app.use('/api/memory', memoryRouter);
 app.use('/api/storyteller', storytellerRouter);
 app.use('/api/images', photoImageRouter);
-app.use('api/tts', ttsRouter);
+app.use('/api/tts', ttsRouter);
 
 const PORT = 3000;
 

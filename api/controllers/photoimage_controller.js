@@ -73,7 +73,7 @@ router.post('/',
       
       const image = await createImage({
         filename: req.file.originalname,
-        file_path: result.secure_url, // ✅ cloud-based image URL
+        file_path: result.secure_url, // Cloudinary URL
         file_size: req.file.size,
         memory_id: req.body.memory_id,
         user_id: req.user?.id || 1

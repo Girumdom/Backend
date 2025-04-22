@@ -22,10 +22,10 @@ async function getStoryByID(storyteller_id) {
     return result[0] || null;
 }
 //CREATE a new STORYTELLER
-async function createStory(name, description, user_id) {
+async function createStory(name, user_id) {
     const [result] = await pool.query(
-        'INSERT INTO STORYTELLER (name, description, user_id) VALUES (?, ?, ?)',
-        [name, description, user_id]
+        'INSERT INTO STORYTELLER (name, user_id) VALUES (?, ?)',
+        [name, user_id]
     );
     return getStoryByID(result.insertId);
 }

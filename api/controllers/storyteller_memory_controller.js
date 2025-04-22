@@ -68,60 +68,77 @@ router.get('/storyteller/:storyteller_id', async (req, res) => {
 // Associate a memory with a storyteller
 router.post('/', async (req, res) => {
     try {
-        const { storyteller_id, memory_id } = req.body;
-        
-        // Validate required fields
-        if (!storyteller_id || !memory_id) {
-            return res.status(400).json({ error: 'storyteller_id and memory_id are required' });
-        }
-        
-        // Verify both storyteller and memory exist
-        const storyteller = await getStoryByID(storyteller_id);
-        if (!storyteller) {
-            return res.status(404).json({ error: 'Storyteller not found' });
-        }
-        
-        const memory = await getMemoryByID(memory_id);
-        if (!memory) {
-            return res.status(404).json({ error: 'Memory not found' });
-        }
-        
-        // Check if association already exists
-        const [existing] = await pool.query(
-            'SELECT * FROM STORYTELLER_MEMORY WHERE storyteller_id = ? AND memory_id = ?',
-            [storyteller_id, memory_id]
-        );
-        
-        if (existing.length > 0) {
-            // Update the used_at timestamp
-            await pool.query(
-                'UPDATE STORYTELLER_MEMORY SET used_at = CURRENT_TIMESTAMP WHERE storyteller_id = ? AND memory_id = ?',
-                [storyteller_id, memory_id]
-            );
-            
-            return res.status(200).json({ 
-                message: 'Memory already associated with storyteller, updated timestamp',
-                storyteller_id,
-                memory_id 
-            });
-        }
-        
-        // Create new association
+      console.log('Incoming association request:', req.body);
+      const { storyteller_id, memory_id } = req.body;
+      
+      if (!storyteller_id || !memory_id) {
+        console.log('Missing parameters');
+        return res.status(400).json({ error: 'storyteller_id and memory_id are required' });
+      }
+      
+      // Verify both exist
+      console.log('Verifying storyteller exists...');
+      const storyteller = await getStoryByID(storyteller_id);
+      if (!storyteller) {
+        console.log('Storyteller not found');
+        return res.status(404).json({ error: 'Storyteller not found' });
+      }
+      
+      console.log('Verifying memory exists...');
+      const memory = await getMemoryByID(memory_id);
+      if (!memory) {
+        console.log('Memory not found');
+        return res.status(404).json({ error: 'Memory not found' });
+      }
+      
+      // Check if association exists
+      console.log('Checking for existing association...');
+      const [existing] = await pool.query(
+        'SELECT * FROM STORYTELLER_MEMORY WHERE storyteller_id = ? AND memory_id = ?',
+        [storyteller_id, memory_id]
+      );
+      
+      if (existing.length > 0) {
+        console.log('Association exists, updating timestamp...');
         await pool.query(
-            'INSERT INTO STORYTELLER_MEMORY (storyteller_id, memory_id) VALUES (?, ?)',
-            [storyteller_id, memory_id]
+          'UPDATE STORYTELLER_MEMORY SET used_at = CURRENT_TIMESTAMP WHERE storyteller_id = ? AND memory_id = ?',
+          [storyteller_id, memory_id]
         );
         
-        res.status(201).json({
-            message: 'Memory associated with storyteller successfully',
-            storyteller_id,
-            memory_id
+        return res.status(200).json({ 
+          message: 'Association already exists',
+          storyteller_id,
+          memory_id 
         });
+      }
+      
+      // Create new association
+      console.log('Creating new association...');
+      const [result] = await pool.query(
+        'INSERT INTO STORYTELLER_MEMORY (storyteller_id, memory_id) VALUES (?, ?)',
+        [storyteller_id, memory_id]
+      );
+      
+      console.log('Insert result:', result);
+      res.status(201).json({
+        message: 'Memory associated successfully',
+        storyteller_id,
+        memory_id,
+        association_id: result.insertId
+      });
     } catch (error) {
-        console.error('Failed to associate memory with storyteller:', error);
-        res.status(500).json({ error: error.message });
+      console.error('Association error:', {
+        message: error.message,
+        stack: error.stack,
+        sqlMessage: error.sqlMessage, // If this is a MySQL error
+        body: req.body
+      });
+      res.status(500).json({ 
+        error: 'Failed to create association',
+        details: error.message 
+      });
     }
-});
+  });
 
 // GET a specific memory associated with a storyteller
 router.get('/:storyteller_id/:memory_id', async (req, res) => {

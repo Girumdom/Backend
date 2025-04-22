@@ -34,11 +34,13 @@ const memoryRouter = require('./api/controllers/memory_controller');
 const storytellerRouter = require('./api/controllers/storyteller_controller');
 const photoImageRouter = require('./api/controllers/photoimage_controller');
 const ttsRouter = require('./api/controllers/tts_controller');
+const storytellerMemoryRouter = require('./api/controllers/storyteller_memory_controller');
 
 app.use('/api/memory', memoryRouter);
 app.use('/api/storyteller', storytellerRouter);
 app.use('/api/images', photoImageRouter);
 app.use('/api/tts', ttsRouter);
+app.use('/api/storyteller-memory', storytellerMemoryRouter);
 
 const PORT = 3000;
 

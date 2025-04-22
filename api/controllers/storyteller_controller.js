@@ -39,7 +39,7 @@ router.get('/:id', async (req, res) => {
 // POST /storyteller - CREATE or ADD a new storyteller
 router.post('/', async(req, res) => {
     try {
-        const { name, description, user_id } = req.body;
+        const { name, user_id } = req.body;
         
         // Validate required fields
         if (!user_id) {
@@ -49,7 +49,7 @@ router.post('/', async(req, res) => {
             });
         }
 
-        const storyteller = await createStory(name, description, user_id);
+        const storyteller = await createStory(name, user_id);
         
         if (!storyteller) {
             throw new Error("Storyteller creation returned null");
@@ -77,8 +77,8 @@ router.post('/', async(req, res) => {
 //PUT /storyteller/:id - UPDATE A STORYTELLER
 router.put('/:id', async (req, res) => {
     try {
-        const { name, description } =  req.body;
-        const updated = await updateStory(req.params.id, name, description);
+        const { name } =  req.body;
+        const updated = await updateStory(req.params.id, name);
         res.status(200).json(updated);
     } catch (error) {
         res.status(500).json({ error: error.message });

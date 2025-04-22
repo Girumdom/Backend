@@ -36,23 +36,40 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-//POST /storyteller - CREATE or ADD a new storyteller
-//POST /storyteller - CREATE or ADD a new storyteller
+// POST /storyteller - CREATE or ADD a new storyteller
 router.post('/', async(req, res) => {
     try {
-        const { name, user_id } = req.body;
-        const storyteller = await createStory(name, user_id);
+        const { name, description, user_id } = req.body;
         
-        // Ensure the response includes storyteller_id
+        // Validate required fields
+        if (!user_id) {
+            return res.status(400).json({ 
+                error: "user_id is required",
+                received_data: req.body 
+            });
+        }
+
+        const storyteller = await createStory(name, description, user_id);
+        
+        if (!storyteller) {
+            throw new Error("Storyteller creation returned null");
+        }
+
         res.status(200).json({
             storyteller_id: storyteller.storyteller_id || storyteller.id,
-            ...storyteller
+            name: storyteller.name,
+            user_id: storyteller.user_id
         });
     } catch (error) {
-        console.error("Storyteller creation error:", error);
+        console.error("Storyteller creation error:", {
+            message: error.message,
+            stack: error.stack,
+            body: req.body
+        });
         res.status(500).json({ 
             error: error.message,
-            details: "Failed to create storyteller" 
+            details: "Failed to create storyteller",
+            sqlError: error.sqlMessage // If using SQL
         });
     }
 });

@@ -3,8 +3,8 @@ const router = express.Router();
 const pool = require('../connections/pool');
 const fs = require('fs').promises;
 const path = require('path');
-const { getImagesByMemoryID, createImage, deleteImage } = require('../connections/photoImage');
-const upload = require('../middleware/upload');
+const { getImagesByMemoryID, createImage, createImages, deleteImage } = require('../connections/photoImage');
+const { upload, uploadArray } = require('../middleware/upload');
 const { cloudinary } = require('../connections/cloudinary');
 
 // ======================
@@ -108,44 +108,161 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Add this new route for base64 uploads
-router.post('/base64', async (req, res) => {
+router.post('/base64/bulk', async (req, res) => {
   try {
-    const { image_data, memory_id, filename } = req.body;
+    const { memory_id, images } = req.body;
     
-    // Validate required fields
-    if (!image_data || !memory_id) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!memory_id || !images || !Array.isArray(images)) {
+      return res.status(400).json({ error: 'Invalid request format' });
     }
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(image_data, {
-      folder: 'girumdom_memories',
-      public_id: filename ? filename.replace(/\.[^/.]+$/, "") : undefined,
-      // Add any transformations you want
-      transformation: [
-        { width: 1200, height: 800, crop: "limit" },
-        { quality: "auto" }
-      ]
+    // Process images with rate limiting (3 at a time)
+    const batchSize = 3;
+    const results = [];
+    
+    for (let i = 0; i < images.length; i += batchSize) {
+      const batch = images.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (imageData) => {
+          try {
+            const result = await cloudinary.uploader.upload(imageData, {
+              folder: 'girumdom_memories',
+              transformation: [
+                { width: 1200, height: 800, crop: "limit" },
+                { quality: "auto" }
+              ]
+            });
+
+            const image = await createImage({
+              filename: `memory-${memory_id}-${Date.now()}`,
+              file_path: result.secure_url,
+              file_size: result.bytes,
+              memory_id,
+              user_id: req.user?.id || 1
+            });
+
+            return {
+              success: true,
+              image
+            };
+          } catch (error) {
+            return {
+              success: false,
+              error: error.message
+            };
+          }
+        })
+      );
+      
+      results.push(...batchResults);
+    }
+
+    const failedUploads = results.filter(r => !r.success);
+    if (failedUploads.length > 0) {
+      return res.status(207).json({
+        message: `${failedUploads.length} images failed to upload`,
+        total: images.length,
+        failedUploads,
+        successfulUploads: results.filter(r => r.success)
+      });
+    }
+
+    res.status(201).json({
+      message: 'All images uploaded successfully',
+      images: results.map(r => r.image)
     });
 
-    // Create DB record with Cloudinary URL
-    const image = await createImage({
-      filename: filename || `memory-${memory_id}-${Date.now()}`,
-      file_path: result.secure_url,
-      file_size: result.bytes,
-      memory_id,
-      user_id: req.user?.id || 1 // Use actual user ID from auth if available
-    });
-
-    res.status(201).json(image);
   } catch (error) {
-    console.error('Cloudinary upload error:', error);
+    console.error('Bulk base64 upload error:', error);
     res.status(500).json({ 
       error: 'Image upload failed',
       details: error.message 
     });
   }
 });
+
+router.post('/multiple', uploadArray, async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No images provided' });
+      }
+
+      const { memory_id } = req.body;
+      if (!memory_id) {
+        // Clean up uploaded files if validation fails
+        await Promise.all(req.files.map(file => 
+          fs.unlink(file.path).catch(console.error)
+        ));
+        return res.status(400).json({ error: 'Memory ID is required' });
+      }
+
+      // Process all images in parallel
+      const uploadResults = await Promise.all(
+        req.files.map(async (file) => {
+          try {
+            // Upload to Cloudinary
+            const result = await cloudinary.uploader.upload(file.path, {
+              folder: 'girumdom_memories'
+            });
+
+            // Create DB record
+            const image = await createImage({
+              filename: file.originalname,
+              file_path: result.secure_url,
+              file_size: file.size,
+              memory_id,
+              user_id: req.user?.id || 1
+            });
+
+            // Clean up temp file
+            await fs.unlink(file.path);
+
+            return {
+              success: true,
+              image
+            };
+          } catch (error) {
+            console.error(`Failed to upload ${file.originalname}:`, error);
+            return {
+              success: false,
+              filename: file.originalname,
+              error: error.message
+            };
+          }
+        })
+      );
+
+      // Check for failures
+      const failedUploads = uploadResults.filter(r => !r.success);
+      if (failedUploads.length > 0) {
+        return res.status(207).json({ // 207 Multi-Status
+          message: `${failedUploads.length} images failed to upload`,
+          total: req.files.length,
+          failedUploads,
+          successfulUploads: uploadResults.filter(r => r.success)
+        });
+      }
+
+      res.status(201).json({
+        message: 'All images uploaded successfully',
+        images: uploadResults.map(r => r.image)
+      });
+
+    } catch (error) {
+      // Clean up any remaining files
+      if (req.files) {
+        await Promise.all(req.files.map(file => 
+          fs.unlink(file.path).catch(console.error)
+        ));
+      }
+      
+      console.error('Multiple upload error:', error);
+      res.status(500).json({ 
+        error: 'Image upload failed',
+        details: error.message 
+      });
+    }
+  }
+);
 
 module.exports = router;

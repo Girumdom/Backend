@@ -30,7 +30,7 @@ router.get('/:reminder_id', verifyToken, async (req, res) => {
 
         const reminder = await getReminderByID(reminder_id, loggedInUserID);
 
-        if (!reminder || reminder.created_by_user_id != loggedInUserID) {
+        if (!reminder) {
             return res.status(404).json({ error: 'Reminder not found or you do not have the permission to view it.' });
         }
 
@@ -109,7 +109,7 @@ router.delete('/:reminder_id', verifyToken, async (req, res) => {
             return res.status(404).json({ error: 'Reminder not found or you do not have the permission to delete it.' });
         }
 
-        res.status(204).json({ message: 'Reminder was deleted successfully' });
+        res.status(204).send();
 
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete reminder.' });

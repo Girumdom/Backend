@@ -11,7 +11,7 @@ async function getAllRemindersByUserID(created_by_user_id){
         );
         return result;
     } catch (error) {
-        console.error('Error in the function getRemindersByUserID:', error);
+        console.error('Error in the function getAllRemindersByUserID:', error);
         throw new Error('Failed to fetch reminders for user');
     }
 }
@@ -68,19 +68,12 @@ async function updateReminder(reminder_id, title, description, reminder_date, cr
 // DELETE A USER'S REMINDER
 async function deleteReminder(reminder_id, created_by_user_id) {
     try {
-        const reminder = await getReminderByID(reminder_id, created_by_user_id);
-        if (!reminder) {
-            throw new Error('Reminder not found or does not belong to the user');
-        }
-        else if (reminder.user_id !== created_by_user_id) {
-            throw new Error('You do not have permission to delete this reminder');
-        }
 
-        await pool.query(
-            'DELETE FROM REMINDER WHERE reminder_id = ? and created_by_user_id = ?',
+        const [result] = await pool.query(
+            'DELETE FROM REMINDER WHERE reminder_id = ? AND created_by_user_id = ?',
             [reminder_id, created_by_user_id]
         );
-        return { message: 'Reminder was deleted successfully' };
+        return result;
 
     } catch (error) {
         console.error('Error in the function deleteReminder:', error);

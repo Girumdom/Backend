@@ -1,6 +1,8 @@
 const { getAllReminders, getAllRemindersByUserID, getReminderByID, createReminder, updateReminder, deleteReminder } = require('../connections/reminder');
 const express = require('express');
 const router = express.Router();
+const verifyToken = require('../middleware/auth');
+const { cat } = require('@xenova/transformers');
 
 router.use(express.json());
 
@@ -9,42 +11,45 @@ router.use((err, req, res, next) => {
     res.status(500).send('Something broke!');
 });
 
-// GET /reminder/user/:user_id - GET ALL REMINDERS FOR A USER
-router.get('/user/:user_id', async (req, res) => {
+// GET /reminders - Fetch all reminders for the logged-in user
+router.get('/', verifyToken, async (req, res) => {
     try {
-        const reminders = await getAllRemindersByUserID(req.params.user_id);
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+
+        const reminders = await getAllRemindersByUserID(loggedInUserID);
         res.status(200).json(reminders);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to retrieve reminders.' });
     }
 });
 
-// GET /reminder/:reminder_id/user/:user_id - GET A SINGLE REMINDER BY ID USING USER ID
-router.get('/:reminder_id/user/:user_id', async (req, res) => {
+// GET /reminders/:reminder_id - GET A SINGLE REMINDER BY ID USING USER ID
+router.get('/:reminder_id', verifyToken, async (req, res) => {
     try {
-        const reminder = await getReminderByID(req.params.reminder_id, req.params.user_id);
-        if (!reminder) {
-            return res.status(404).json({ error: 'Reminder not found' })
-        } else {
-            res.status(200).json(reminder);
+        const { reminder_id } = req.params; // Extract reminder_id from request parameters
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+
+        const reminder = await getReminderByID(reminder_id, loggedInUserID);
+
+        if (!reminder || reminder.created_by_user_id != loggedInUserID) {
+            return res.status(404).json({ error: 'Reminder not found or you do not have the permission to view it.' });
         }
+
+        res.status(200).json(reminder);
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to retrieve reminder.' });
     }
 });
 
-// POST /reminder - CREATE A NEW REMINDER for a specific user
-router.post('/', async (req, res) => {
+// POST /reminders - CREATE A NEW REMINDER for a specific user
+router.post('/', verifyToken, async (req, res) => {
     try {
-        const { title, description, reminder_date, created_by_user_id } = req.body;
+        const { title, description, reminder_date } = req.body;
 
-        // Validate required fields
-        if (!created_by_user_id) {
-            return res.status(400).json({
-                error: "created_by_user_id is required",
-                received_data: req.body
-            });
-        }
+        const created_by_user_id = req.user.user_id; // Get the user ID from the token
+
+
         if (!title || !reminder_date) {
             return res.status(400).json({
                 error: "title and reminder_date are required",
@@ -70,18 +75,20 @@ router.post('/', async (req, res) => {
             stack: error.stack,
             body: req.body
         });
+        res.status(500).json({ error: 'Failed to create reminder' });
     }
 });
 
 // PUT /reminder/:reminder_id - UPDATE A USER'S REMINDER
-router.put('/:reminder_id', async (req, res) => {
+router.put('/:reminder_id',  verifyToken, async (req, res) => {
     try {
         const { title, description, reminder_date } = req.body; // Extract title, description, and reminder_date from request body
         const { reminder_id } = req.params; // Extract reminder_id from request parameters
-        const { created_by_user_id } = req.user.id; //
+
+        const created_by_user_id = req.user.user_id; //
         const updatedReminder = await updateReminder(reminder_id, title, description, reminder_date, created_by_user_id);
 
-        if (!updateReminder) {
+        if (!updatedReminder) {
             return res.status(404).json({ error: 'Reminder not found or does not belong to the user' });
         }
 
@@ -90,5 +97,24 @@ router.put('/:reminder_id', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// DELETE /reminder/:reminder_id - DELETE A USER'S REMINDER
+router.delete('/:reminder_id', verifyToken, async (req, res) => {
+    try {
+        const { reminder_id } = req.params; // Extract reminder_id from request parameters
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+
+        const result = await deleteReminder(reminder_id, loggedInUserID);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Reminder not found or you do not have the permission to delete it.' });
+        }
+
+        res.status(204).json({ message: 'Reminder was deleted successfully' });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete reminder.' });
+    }
+})
 
 module.exports = router;

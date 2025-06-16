@@ -45,7 +45,7 @@ app.use('/api/storyteller', storytellerRouter);
 app.use('/api/images', photoImageRouter);
 app.use('/api/tts', ttsRouter);
 app.use('/api/storyteller-memory', storytellerMemoryRouter);
-app.use('/api/reminder', reminderRouter);
+app.use('/api/reminders', reminderRouter);
 app.use('/api/auth', authRouter);
 
 const PORT = 3000;

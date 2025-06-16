@@ -2,16 +2,6 @@ const pool = require('./pool');
 
 // START OF REMINDER FUNCTIONS
 
-async function getAllReminders() {
-    try {
-        const [result] = await pool.query('SELECT * FROM REMINDER');
-        return result;
-    } catch (error) {
-        console.error('Error in the function getAllReminders:', error);
-        throw new Error('Failed to fetch reminders');
-    }
-}
-
 // GET ALL REMINDERS FOR A USER
 async function getAllRemindersByUserID(created_by_user_id){
     try {
@@ -34,7 +24,7 @@ async function getReminderByID(reminder_id, created_by_user_id){
             [reminder_id, created_by_user_id]
         );
         return result[0] || null;
-    }catch (error) {
+    } catch (error) {
         console.error('Error in the function getReminderByID:', error);
         throw new Error('Failed to fetch reminder by ID');
     }
@@ -100,7 +90,6 @@ async function deleteReminder(reminder_id, created_by_user_id) {
 
 // END OF REMINDER FUNCTIONS
 module.exports = {
-    getAllReminders,
     getAllRemindersByUserID,
     getReminderByID,
     createReminder,

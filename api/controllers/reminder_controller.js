@@ -1,8 +1,7 @@
-const { getAllReminders, getAllRemindersByUserID, getReminderByID, createReminder, updateReminder, deleteReminder } = require('../connections/reminder');
+const { getAllRemindersByUserID, getReminderByID, createReminder, updateReminder, deleteReminder } = require('../connections/reminder');
 const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
-const { cat } = require('@xenova/transformers');
 
 router.use(express.json());
 
@@ -23,7 +22,7 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
-// GET /reminders/:reminder_id - GET A SINGLE REMINDER BY ID USING USER ID
+// GET /reminders/:reminder_id - GET A SINGLE REMINDER BY ID
 router.get('/:reminder_id', verifyToken, async (req, res) => {
     try {
         const { reminder_id } = req.params; // Extract reminder_id from request parameters

@@ -1,6 +1,7 @@
-const { getStory, getStorytellersByUserID, getStoryByID, createStory, updateStory, deleteStory } = require('../connections/storyteller');
+const { getStorytellersByUserID, getStoryByID, createStory, updateStory, deleteStory } = require('../connections/storyteller');
 const express = require('express');
 const router = express.Router();
+const verifyToken = require('../middleware/auth');
 
 router.use(express.json());
 
@@ -9,42 +10,48 @@ router.use((err, req, res, next) => {
     res.status(500).send('Something broke!');
 });
 
-// GET /storyteller/user/:user_id - GET ALL STORYTELLERS FOR A USER
-router.get('/user/:user_id', async (req, res) => {
+// GET /storyteller - FETCH ALL STORYTELLERS FOR A LOGGED-IN USER
+router.get('/', verifyToken, async (req, res) => {
     try {
-        const storyteller = await getStorytellersByUserID(req.params.user_id);
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+        const storyteller = await getStorytellersByUserID(loggedInUserID);
         res.status(200).json(storyteller);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to retrieve storytellers.' });
     }
 });
 
-// GET /storyteller - GET ALL STORYTELLER FOR ALL USER
-router.get('/', async (req, res) => {
-    const storyteller = await getStory();
-    res.send(storyteller);
-});
+//GET /storyteller/:storyteller_id - FETCH A SINGLE STORYTELLER BY ID 
+router.get('/:storyteller_id', verifyToken, async (req, res) => {
+    try {
+        const { storyteller_id } = req.params; // Extract storyteller_id from request parameters
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+        
+        const storyteller = await getStoryByID(storyteller_id, loggedInUserID);
 
-//GET /storyteller/:id - GET A SINGLE STORYTELLER
-router.get('/:id', async (req, res) => {
-    try {  
-        const storyteller = await getStoryByID(req.params.id);
-        if(!storyteller) return res.status(404).json({ error: 'Storyteller not found' });
+        // check if storyteller exists and belongs to the logged-in user
+        if (!storyteller || storyteller.user_id !== loggedInUserID) {
+            return res.status(404).json({ error: 'Storyteller not found or you do not have permission to view it.' });
+        }
+        
         res.status(200).json(storyteller);
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to retrieve storyteller' });
     }
 });
 
 // POST /storyteller - CREATE or ADD a new storyteller
-router.post('/', async(req, res) => {
+router.post('/', verifyToken, async(req, res) => {
     try {
-        const { name, user_id } = req.body;
-        
+        const { name } = req.body;
+
+        const user_id = req.user.user_id; // Get the user ID from the token
+
         // Validate required fields
-        if (!user_id) {
+        if (!name) {
             return res.status(400).json({ 
-                error: "user_id is required",
+                error: "Name is required",
                 received_data: req.body 
             });
         }
@@ -66,32 +73,50 @@ router.post('/', async(req, res) => {
             stack: error.stack,
             body: req.body
         });
-        res.status(500).json({ 
-            error: error.message,
-            details: "Failed to create storyteller",
-            sqlError: error.sqlMessage // If using SQL
-        });
+        res.status(500).json({ error: 'Failed to create storyteller' });
     }
 });
 
-//PUT /storyteller/:id - UPDATE A STORYTELLER
-router.put('/:id', async (req, res) => {
+//PUT /storyteller/:storyteller_id - UPDATE A STORYTELLER
+router.put('/:storyteller_id', verifyToken, async (req, res) => {
     try {
-        const { name } =  req.body;
-        const updated = await updateStory(req.params.id, name);
-        res.status(200).json(updated);
+        const { name, description } =  req.body;
+        const { storyteller_id } = req.params; // Extract storyteller_id from request parameters
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+
+        // Validate required fields
+        if (!name) {
+            return res.status(400).json({ 
+                error: "Name is required",
+                received_data: req.body 
+            });
+        }
+
+        const updatedStoryteller = await updateStory(storyteller_id, name, description, loggedInUserID);
+        if (!updatedStoryteller) {
+            return res.status(404).json({ error: 'Storyteller not found or does not belong to the user' });
+        }
+
+        res.status(200).json(updatedStoryteller);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-//DELETE /storyteller/:id - DELETE a storyteller
-router.delete('/:id', async(req, res) => {
+//DELETE /storyteller/:storyteller_id - DELETE a storyteller
+router.delete('/:storyteller_id', verifyToken, async(req, res) => {
     try {
-        await deleteStory(req.params.id);
-        res.status(200).json({ message: 'Storyteller deleted successfully' });
+        const { storyteller_id } = req.params; // Extract storyteller_id from request parameters
+        const loggedInUserID = req.user.user_id; // Get the user ID from the token
+
+        const result = await deleteStory(storyteller_id, loggedInUserID);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Storyteller not found or you do not have the permission to delete it.' });
+        }
+
+        res.status(204).json({ message: 'Storyteller was deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to delete reminder.'});
     }
 });
 

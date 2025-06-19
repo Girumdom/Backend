@@ -5,11 +5,6 @@ const verifyToken = require('../middleware/auth');
 
 router.use(express.json());
 
-router.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Something broke!');
-});
-
 // GET /reminders - Fetch all reminders for the logged-in user
 router.get('/', verifyToken, async (req, res) => {
     try {
@@ -115,5 +110,10 @@ router.delete('/:reminder_id', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to delete reminder.' });
     }
 })
+
+router.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
 
 module.exports = router;

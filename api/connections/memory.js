@@ -61,7 +61,7 @@ async function updateMemory(memory_id, title, content, date_of_event, loggedInUs
             return null; // No rows updated, possibly memory not found or does not belong to the user
         }
 
-        return getMemoryByID(memory_id);
+        return getMemoryByID(memory_id, loggedInUserID);
     } catch (error) {
         console.error('Error in the function updateMemory:', error);
         throw new Error('Failed to update memory');

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const verifyToken = require('../middleware/verifyToken');
+const verifyToken = require('../middleware/auth');
 const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, getCollaborationByID, updateCollaboration, deleteCollaboration, addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, removeMemoryFromCollaboration, } = require('../connections/collaboration_functions');
 
 router.use(verifyToken); // Ensures that all routes in this file are protected by token verification

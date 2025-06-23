@@ -38,6 +38,7 @@ const storytellerMemoryRouter = require('./api/controllers/storyteller_memory_co
 const reminderRouter = require('./api/controllers/reminder_controller');
 const userRouter = require('./api/controllers/user_controller');
 const authRouter = require('./api/controllers/authController');
+const collaborationRouter = require('./api/controllers/collaboration_controller')
 
 app.use('/api/user', userRouter);
 app.use('/api/memory', memoryRouter);
@@ -47,6 +48,7 @@ app.use('/api/tts', ttsRouter);
 app.use('/api/storyteller-memory', storytellerMemoryRouter);
 app.use('/api/reminders', reminderRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/collaborations', collaborationRouter);
 
 const PORT = 3000;
 

@@ -34,8 +34,8 @@ async function getReminderByID(reminder_id, created_by_user_id){
 async function createReminder(title, description, reminder_date, created_by_user_id){
     try {
         const [result] = await pool.query(
-            `INSERT INTO REMINDER (title, description, reminder_date, created_by_user_id)
-            VALUES (?, ?, ?, ?)`, [title, description, reminder_date, created_by_user_id]
+            `INSERT INTO REMINDER (title, description, reminder_date, created_by_user_id, memory_id)
+            VALUES (?, ?, ?, ?, NULL)`, [title, description, reminder_date, created_by_user_id]
         );
         return getReminderByID(result.insertId, created_by_user_id);
     } catch (error) {

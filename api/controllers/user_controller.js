@@ -36,12 +36,13 @@ router.get('/:user_id', verifyToken, async (req, res) => {
 // POST /user - CREATE A NEW USER ACCOUNT
 router.post('/', async (req, res) => {
     try {
-        const { email, password, username, user_type } = req.body;
+        const { email, password, username, user_type, fullname, role } = req.body;
 
         // Validate required fields
-        if (!email || !password || !username || !user_type) {
+        if (!email || !password || !username || !user_type || !fullname || !role) {
+            console.error("Missing required fields:", req.body);
             return res.status(400).json({
-                error: "Email, Password, Username, and User Type are required",
+                error: "Email, Password, Username, User Type, Fullname, and Role are required",
                 received_data: req.body
             });
         }

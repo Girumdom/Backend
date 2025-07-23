@@ -9,12 +9,12 @@ router.use(express.json());
 // USER SIGNUP - CREATE A NEW USER ACCOUNT - /api/auth/signup
 router.post('/signup', async (req, res) => {
     try {
-        const { email, password, username, user_type } = req.body;
+        const { email, password, user_type, fullname, role } = req.body;
 
         // Validate required fields
-        if (!email || !password || !username || !user_type) {
+        if (!email || !password || !user_type || !fullname || !role) {
             return res.status(400).json({
-                error: "Email, Password, Username, and User Type are required",
+                error: "Email, Password, User Type, Fullname, and Role are required",
                 received_data: req.body
             });
         }
@@ -26,23 +26,21 @@ router.post('/signup', async (req, res) => {
 
         // Check if user already exists by email or username
         const existingUserEmail = await getUserByEmail(email);
-        const existingUsername = await getUserByUsername(username);
         if (existingUserEmail) {
             return res.status(409).json({ error: 'User with this email already exists' });
-        } else if (existingUsername) {
-            return res.status(409).json({ error: 'User with this username already exists' });
-        }
+        } 
 
         const passwordHash = await bcrypt.hash(password, 10);
-        const user = await createUser(email, passwordHash, username, user_type);
+        const user = await createUser(email, passwordHash, user_type, fullname, role);
         if (!user) {
             throw new Error("User creation returned null");
         }
         res.status(201).json({
             user_id: user.user_id || user.id,
             email: user.email,
-            username: user.username,
-            user_type: user.user_type
+            user_type: user.user_type,
+            fullname: user.fullname,
+            role: user.role
         });
     } catch (error) {
         console.error("User creation error:", {

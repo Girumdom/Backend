@@ -36,13 +36,13 @@ router.get('/:user_id', verifyToken, async (req, res) => {
 // POST /user - CREATE A NEW USER ACCOUNT
 router.post('/', async (req, res) => {
     try {
-        const { email, password, username, user_type, fullname, role } = req.body;
+        const { email, password, user_type, fullname, role } = req.body;
 
         // Validate required fields
-        if (!email || !password || !username || !user_type || !fullname || !role) {
+        if (!email || !password || !user_type || !fullname || !role) {
             console.error("Missing required fields:", req.body);
             return res.status(400).json({
-                error: "Email, Password, Username, User Type, Fullname, and Role are required",
+                error: "Email, Password, User Type, Fullname, and Role are required",
                 received_data: req.body
             });
         }
@@ -54,26 +54,23 @@ router.post('/', async (req, res) => {
 
         // Check if user already exists by email or username
         const existingUserEmail = await getUserByEmail(email);
-        const existingUsername = await getUserByUsername(username);
 
         if (existingUserEmail) {
             return res.status(409).json({ error: 'User with this email already exists' });
         }
-        else if (existingUsername) {
-            return res.status(409).json({ error: 'User with this username already exists' });
-        }
 
         const passwordHash = await bcrypt.hash(password, 10);
 
-        const user = await createUser(email, passwordHash, username, user_type);
+        const user = await createUser(email, passwordHash, user_type, fullname, role);
         if (!user) {
             throw new Error("User creation returned null");
         }
         res.status(201).json({
             user_id: user.user_id || user.id,
             email: user.email,
-            username: user.username,
-            user_type: user.user_type
+            user_type: user.user_type,
+            fullname: user.fullname,
+            role: user.role
         });
 
     } catch (error) {
@@ -88,8 +85,8 @@ router.post('/', async (req, res) => {
 // PUT /user/:user_id - UPDATE AN EXISTING USER ACCOUNT
 router.put('/:user_id', verifyToken, async (req, res) => {
     try {
-        const { email, password_hash, username } = req.body;
-        const updatedUser = await updateUser(req.params.user_id, email, password_hash, username);
+        const { email, password_hash, fullname } = req.body;
+        const updatedUser = await updateUser(req.params.user_id, email, password_hash, fullname);
 
         if (!updatedUser) {
             return res.status(404).json({ error: 'User not found or no changes made' });
@@ -98,7 +95,7 @@ router.put('/:user_id', verifyToken, async (req, res) => {
         res.status(200).json({
             user_id: updatedUser.user_id || updatedUser.id,
             email: updatedUser.email,
-            username: updatedUser.username,
+            fullname: updatedUser.fullname,
             user_type: updatedUser.user_type
         });
 

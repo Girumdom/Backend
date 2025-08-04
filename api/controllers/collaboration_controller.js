@@ -1,7 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
-const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, getCollaborationByID, updateCollaboration, deleteCollaboration, addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, removeMemoryFromCollaboration, } = require('../connections/collaboration_functions');
+const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, 
+    getCollaborationByID, updateCollaboration, deleteCollaboration, 
+    addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, 
+    removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
+    getCollaborationMemories,
+} = require('../connections/collaboration_functions');
 
 router.use(verifyToken); // Ensures that all routes in this file are protected by token verification
 
@@ -129,7 +134,98 @@ router.post('/:id/members', async (req, res) => {
     }
 });
 
+// DELETE /api/collaborations/:id/members/:user_id - Remove a user from a collaboration
+router.delete('/:id/members/:userID', async (req, res) => {
+    try {
+        const { id: collaborationID, userID } = req.params;
+        const loggedInUserID = req.user.user_id;
+        // Authorization: Only the main user / owner can remove members
+        const loggedInUserRole = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
+        if (loggedInUserRole !== 'owner') {
+            return res.status(403).json({ error: 'Only the owner of the collaboration can remover a member' });  
+        }
+        // if (!userID) {
+        //     return res.status(400).json({ error: 'User ID is required' });
+        // }
+        const result = await removeMemberFromCollaboration(collaborationID, userID);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'User not found in this collaboration' });
+        }
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error in removeMemberFromCollaboration:', error);
+        res.status(500).json({ error: error.message || 'Failed to remove a member in collaboration' });
+    }
+});
+
+// PUT /api/collaborations/:id/members/:user_id - Edit a user's role in a collaboration
+router.put('/:id/members/:userID', async (req, res) => {
+    try {
+        const { id: collaborationID, userID } = req.params;
+        const { newRole } = req.body;
+        const loggedInUserID = req.user.user_id;
+
+        // Authorization: Only the main user / owner of the collaboration can edit member roles
+        const loggedInUserRole = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
+        if (loggedInUserRole !== 'owner') {
+            return res.status(403).json({ error: 'Only the owner can edit member roles in the collaboration' });
+        }
+        if (!newRole) {
+            return res.status(400).json({ error: 'New role is required' });
+        }
+        const result = await editMemberRoleInCollaboration(collaborationID, userID, newRole);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Error in editMemberRoleInCollaboration:', error);
+
+        // handle a case where the user is not found in the collaboration
+        if (error.message.includes('not found in this collaboration')) {
+            return res.status(404).json({ error: error.message });
+        }
+        res.status(500).json({ error: error.message || 'Failed to edit member role in collaboration' });
+    }
+});
+
+// GET /api/collaborations/:id/members - Fetch the members currently included in the collaboration
+router.get('/:id/members', async (req, res) => {
+    try {
+        const { id: collaborationID } = req.params;
+        const loggedInUserID = req.user.user_id;
+
+        // Check if user is a members of the collaboration
+        const role = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
+        if(!role) {
+            return res.status(403).json({ error: 'Access denied. You are not a member of this collaboration.' });
+        }
+
+        const members = await getCollaborationMembers(collaborationID);
+        res.status(200).json(members);
+
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to fetch collaboration members' });
+    }
+});
+
 /* ROUTES FOR MANAGING MEMORIES */
+
+// GET /api/collaboration/:id/memories - fetch the memories inside a collaboration
+router.get('/:id/memories', async (req, res) => {
+    try {
+        const { id: collaborationID } = req.params;
+        const loggedInUserID = req.user.user_id;
+
+        // Check if the user requesting the fetch is a member of the collaboration
+        const role = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
+        if(!role) {
+            return res.status(403).json({ error: 'Access denied. Your are not a member of the collaboration' });
+        }
+        const collaborationMemories = await getCollaborationMemories(collaborationID)
+        res.status(200).json(collaborationMemories);
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to fetch collaboration memories' });
+    }
+});
+
 // POST /api/collaborations/:id/memories - add a memory to a collaboration
 router.post('/:id/memories', async (req, res) => {
     try {

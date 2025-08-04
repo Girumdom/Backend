@@ -125,6 +125,37 @@ async function removeMemberFromCollaboration(collaborationID, userID) {
     }
 }
 
+// EDIT A USER'S ROLE IN THE COLLABORATION
+async function editMemberRoleInCollaboration(collaborationID, userID, newRole) {
+    try {
+        const sql = `UPDATE USER_COLLABORATION SET role= ? WHERE collaboration_id = ? AND user_id = ?`; 
+        const [result] = await pool.query(sql, [collaborationID, userID, newRole]);
+        if (result.affectedRows === 0) {
+            throw new Error('User not found in this collaboration');
+        }
+        return { message: 'User role updated successfully' };
+    } catch (error) {
+        console.error('Error in editMemberRoleInCollaboration:', error);
+        throw new Error('Failed to update member role');
+    }
+}
+
+// GET MEMBERS IN A COLLABORATION
+async function getCollaborationMembers(collaborationID) {
+    try {
+        const sql = `SELECT u.user_id, u.fullname, u.email, uc.role AS collaboration_role, uc.joined_at
+                    FROM USER_COLLABORATION uc
+                    JOIN USER u ON uc.user_id = u.user_id
+                    WHERE uc.collaboration_id = ?
+                    ORDER BY uc.joined_at ASC;`;
+        const [rows] = await pool.query(sql, [collaborationID]);
+        return rows;
+    } catch (error) {
+        console.error('Error in getCollaborationMembers:', error);
+        throw new Error('Failed to fetch collaboration members');
+    }
+}
+
 /*
 COLLABORATION MEMORIES FUNCTIONS
 */
@@ -156,6 +187,50 @@ async function removeMemoryFromCollaboration(collaborationID, memoryID) {
     }
 }
 
+// GET THE MEMORIES OF A COLLABORATION
+async function getCollaborationMemories(collaborationID) {
+    try {
+        const sql = `SELECT m.memory_id, m.title, m.content, m.date_of_event, cm.added_at, cm.added_by_user_id, u.fullname as added_by_username, p.photo_id, p.file_path
+                    FROM COLLABORATION_MEMORY cm
+                    JOIN MEMORY m ON cm.memory_id = m.memory_id
+                    JOIN USER u ON cm.added_by_user_id = u.user_id
+                    LEFT JOIN PHOTO_IMAGE p ON m.memory_id = p.memory_id
+                    WHERE cm.collaboration_id = ?
+                    ORDER BY cm.added_at DESC`;
+        const [rows] = await pool.query(sql, [collaborationID])
+
+        // Group memories by memory_id
+        const memoriesMap = new Map();
+
+        rows.forEach(row => {
+            if (!memoriesMap.has(row.memory_id)) {
+                memoriesMap.set(row.memory_id, {
+                    memory_id: row.memory_id,
+                    title: row.title,
+                    content: row.content,
+                    date_of_event: row.date_of_event,
+                    added_at: row.added_at,
+                    added_by_user_id: row.added_by_user_id,
+                    fullname: row.added_by_username,
+                    images: []
+                });
+            }
+
+            if (row.photo_id) {
+                memoriesMap.get(row.memory_id).images.push({
+                    photo_id: row.photo_id,
+                    file_path: row.file_path
+                });
+            }
+        });
+
+        return Array.from(memoriesMap.values());
+    } catch (error) {
+        console.error('Error in getCollaborationMemories:', error);
+        throw new Error('Failed to fetch collaboration memories');
+    }
+}
+
 module.exports = {
     getUserRoleInCollaboration,
     createCollaboration,
@@ -165,6 +240,9 @@ module.exports = {
     deleteCollaboration,
     addMemberToCollaboration,
     removeMemberFromCollaboration,
+    editMemberRoleInCollaboration,
     addMemoryToCollaboration,
     removeMemoryFromCollaboration,
+    getCollaborationMembers,
+    getCollaborationMemories,
 };

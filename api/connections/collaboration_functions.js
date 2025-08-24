@@ -13,30 +13,66 @@ async function getUserRoleInCollaboration(userID, collaborationID) {
 }
 
 // Collaboration entity functions
-async function createCollaboration(name, description, mainUserID) {
-    const connection = await pool.getConnection;
+async function createCollaborationInvite(collaborationID, email, status, invitedBy) {
     try {
-        await connection.beginTransaction();
+        // check for existing pending user invite
+        const sql =  ' SELECT * FROM COLLABORATION_INVITE WHERE collaboration_id = ? AND email = ? AND status = "pending" ';
+        const [existingInvite] = await pool.query(sql, [collaborationID, email]);
+        
+        if (existingInvite.length > 0) {
+            throw new Error('An invitation is already pending for this user.');
+        }
 
-        // Create the collaboration
-        const collaborationSQL = `INSERT INTO COLLABORATION (name, description, main_user_id) VALUES (?, ?, ?)`;
-        const [collaborationResult] = await connection.query(collaborationSQL, [name, description, mainUserID]);
-        const collaborationID = collaborationResult.insertId;
+        // insert a new invite
+        await pool.query(
+            'INSERT INTO COLLABORATION_INVITE (collaboration_id, email, status, invited_by) VALUES (?, ?, ?, ?)',
+            [collaborationID, email, status, invitedBy]
+        );
 
-        // Add the creator to the USER_COLLABORATION table as the 'owner'
-        const memberSQL = `INSERT INTO USER_COLLABORATION (user_id, collaboration_id, role) VALUES (?, ?, 'owner')`;
-        await connection.query(memberSQL, [mainUserID, collaborationID]);
-
-        await connection.commit();
-
-        // return the full details of the newly created collaboration
-        return getCollaborationByID(collaborationID);
+        return { message: 'Invitation sent successfully!' };
     } catch (error) {
-        await connection.rollback();
-        console.error('Error in createCollaboration:', error);
-        throw new Error('Failed to create collaboration');
-    } finally {
-        connection.release();   
+        console.error('Error in createCollaborationInvite function:', error);
+        throw error;
+    }
+}
+
+// Invite a user to a collaboration function
+
+// async function createCollaboration(name, description, mainUserID) {
+//     const connection = await pool.getConnection();
+//     try {
+//         await connection.beginTransaction();
+
+//         // Create the collaboration
+//         const collaborationSQL = `INSERT INTO COLLABORATION (name, description, main_user_id) VALUES (?, ?, ?)`;
+//         const [collaborationResult] = await connection.query(collaborationSQL, [name, description, mainUserID]);
+//         const collaborationID = collaborationResult.insertId;
+
+//         // Add the creator to the USER_COLLABORATION table as the 'owner'
+//         const memberSQL = `INSERT INTO USER_COLLABORATION (user_id, collaboration_id, role) VALUES (?, ?, 'owner')`;
+//         await connection.query(memberSQL, [mainUserID, collaborationID]);
+
+//         await connection.commit();
+
+//         // return the full details of the newly created collaboration
+//         return getCollaborationByID(collaborationID);
+//     } catch (error) {
+//         await connection.rollback();
+//         console.error('Error in createCollaboration:', error);
+//         throw new Error('Failed to create collaboration');
+//     } finally {
+//         connection.release();   
+//     }
+// }
+
+// check if an existing collaboration already exists
+async function collaborationExists(collaborationID) {
+    try{
+        const [result] = await pool.query('SELECT collaboration_id FROM COLLABORATION WHERE collaboration_id = ?', [collaborationID]);
+        return result.length > 0;
+    } catch (error) {
+        console.error('Error checking collaboration existence:', error);
+        throw new Error('Failed to check collaboration existence');
     }
 }
 
@@ -97,19 +133,32 @@ async function deleteCollaboration(collaborationID, mainUserID) {
 COLLABORATION MEMBERS FUNCTIONS
 */
 
-// ADD A USER TO A COLLABORATION WITH A SPECIFIC ROLE
-async function addMemberToCollaboration(collaborationID, userID, role) {
+// ADD / INVITE  A USER TO A COLLABORATION WITH A SPECIFIC ROLE
+async function addMemberToCollaboration(collaborationID, email, role) {
     try {
-        const sql = 'INSERT INTO USER_COLLABORATION (collaboration_id, user_id, role) VALUES (?, ?, ?)';
-        await pool.query(sql, [collaborationID, userID, role]);
-        return { message: 'User added successfully' };
+        // Find the user by their email
+        const userQuery = 'SELECT user_id from USER WHERE email = ?';
+        const [users] = await pool.query(userQuery, [email]);
+
+        if (users.length === 0) {
+            throw new Error('User with this email does not exists');
+        }
+
+        const userID = users[0].user_id;
+
+        // add the user to the collaboration once found in the database
+        const sql = `INSERT INTO USER_COLLABORATION (collaboration_id, user_id, role) VALUES (?, ?, ?)`;
+        await pool.query(sql, [collaborationID, userID, role])
+
+        return { message: 'User invited successfully' };
+
     } catch (error) {
         // handle a case where the user is already a member (dublicate primary key)
         if (error.code === 'ER_DUP_ENTRY') {
             throw new Error('User is already a member of this collaboration.');
         }
         console.error('Error in addMemberToCollaboration:', error);
-        throw new Error('Failed to add member');
+        throw error;
     }
 }
 
@@ -233,7 +282,6 @@ async function getCollaborationMemories(collaborationID) {
 
 module.exports = {
     getUserRoleInCollaboration,
-    createCollaboration,
     getCollaborationByUserID,
     getCollaborationByID,
     updateCollaboration,
@@ -245,4 +293,6 @@ module.exports = {
     removeMemoryFromCollaboration,
     getCollaborationMembers,
     getCollaborationMemories,
+    collaborationExists,
+    createCollaborationInvite,
 };

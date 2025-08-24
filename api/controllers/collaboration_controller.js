@@ -5,10 +5,53 @@ const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserI
     getCollaborationByID, updateCollaboration, deleteCollaboration, 
     addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, 
     removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
-    getCollaborationMemories,
+    getCollaborationMemories, collaborationExists, createCollaborationInvite
 } = require('../connections/collaboration_functions');
 
+const { getUserByEmail } = require('../connections/users')
+
+const inviteRateLimit = new Map();
+
 router.use(verifyToken); // Ensures that all routes in this file are protected by token verification
+
+// helper functions
+
+function checkRateLimit(userEmail) {
+    const now = Date.now();
+    const userLimit = inviteRateLimit.get(userEmail);
+
+    // reset if 1 hour has already passed
+    if (!userLimit || now > userLimit.resetTime) {
+        inviteRateLimit.set(userEmail, { count: 1, resetTime: now + (60 * 60 * 1000) }); // 1 hour
+        return true;
+    }
+
+    // check if the user exceeded the rate limit
+    if (userLimit.count >= 10) {
+        return false;
+    }
+
+    // increment count
+    userLimit.count++;
+    return true;
+}
+
+// validate email
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+// check if user is trying to invite themselves
+function isInvitingSelf(inviterEmail, inviteeEmail) {
+    return inviterEmail.toLowerCase() === inviteeEmail.toLowerCase();
+}
+
+// validate role
+function isValidRole(role) {
+    const validRoles = ['owner', 'editor', 'viewer'];
+    return validRoles.includes(role);
+}
 
 /* ROUTES FOR COLLABORATION */
 
@@ -106,31 +149,158 @@ router.delete('/:id', async (req, res) => {
 });
 
 /* ROUTES FOR MANAGING MEMBERS */
-// POST /api/collaborations/:id/members - Add a user to a collaboration
+
+// POST /api/collaborations/:id/members - Add / Invite a user to a collaboration
 router.post('/:id/members', async (req, res) => {
     try {
         const { id: collaborationID } = req.params;
-        const { userID, role } = req.body;
+        const { email, role } = req.body;
         const loggedInUserID = req.user.user_id;
+        const loggedInUserEmail = req.user.email;
+
+        // validate require fields
+        if (!email || !role) {
+            return res.status(400).json({ error: 'Emal and role are required '});
+        }
+
+        // validate email format
+        if(!isValidEmail(email)) {;
+            return res.status(400).json({ error: 'Invalid email format' })
+        }
+
+        // check rate limit
+        if (!checkRateLimit(loggedInUserEmail)) {
+            return res.status(429).json({ error: 'Rate limit exceeded. You can send up to 10 invites per hour.'})
+        }
+
+        // check if collaboration already exists
+        const exists = await collaborationExists(collaborationID);
+        if (!exists) {
+            return res.status(404).json({ error: 'Collaboration not found' });
+        }
 
         // Authorization: Only the main user / owner can add new members
-        const loggedInUserRole = getUserRoleInCollaboration(loggedInUserID, collaborationID);
+        const loggedInUserRole = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
         if (loggedInUserRole !== 'owner') {
             return res.status(403).json({ error: 'Only the owner can add members to the collaboration' });
         }
-        if (!userID || !role) {
-            return res.status(400).json({ error: 'User ID and role are required' });
+
+        // get the logged-in user's email to check if it is a self-invite
+        if(isInvitingSelf(loggedInUserEmail, email)) {
+            return res.status(400).json({ error: 'You cannot invite yourself' });
         }
 
-        const result = await addMemberToCollaboration(collaborationID, userID, role);
+        // validate role
+        if(!isValidRole(role)) {
+            return res.status(400).json({ error: 'Invalid role. Must be one of: Owner, Editor, Viewer' });
+        }
+        
+        // invite user to the collaboration
+        const result = await createCollaborationInvite(collaborationID, email, role, loggedInUserID);
         res.status(201).json(result);
     } catch (error) {
-        // send a 409 conflict error if the user is already a member
+        if (error.message.includes('does not exists')) {
+            return res.status(404).json({ error: error.message });
+        }
         if (error.message.includes('already a member')) {
             return res.status(409).json({ error: error.message });
         }
-
         res.status(500).json({ error: error.message || 'Failed to add member to collaboration' });
+    }
+});
+
+// POST /api/collaboration/invites/:invite_id/accept - Accept the invitation from the user
+router.post('/invites/:invite_id/accept', async (req, res) => {
+    try {
+        const { invite_id } = req.params;
+        const user = req.user;
+        
+        // find/check the invite
+        const [invites] = await pool.query(
+            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = "pending" ',
+            [invite_id]
+        );
+        const invite = invites[0];
+        if (!invite) {
+            return res.status(404).json({ error: 'Invite not found or already handled' });
+        }
+
+        // validate if the invitation is for the user
+        if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
+            return res.status(403).json({ error: 'You are not authorized to accept this invitation.' });
+        }
+
+        // add the invited user to USER_COLLABORATION table
+        await pool.query(
+            'INSERT INTO USER_COLLABORATION (collaboration_id, user_id, role) VALUES (?, ?, ?)',
+            [invite.collaboration_id, user.user_id, invite.role]
+        );
+
+        // update the invite status
+        await pool.query(
+            'UPDATE COLLABORATION_INVITE SET status = "accepted" WHERE invite_id = ?',
+            [invite_id]
+        );
+
+        res.json({ message: 'Invitaion accepted '});
+
+    } catch (error) {
+        // handle duplicate entry
+        if (error.code === 'ER_DUP_ENTRY') { 
+            await pool.query(
+                'UPDATE COLLABORATION_INVITE SET status = "accepted" WHERE invite_id = ?',
+                [req.params.invite_id]
+            );
+            return res.status(200).json({ message: 'Already a member, invite marked as accepted ' });
+        }
+        console.error('Error accepting the invitation:', error);
+        res.status(500).json({ error: error.message || 'Failed to accept invitation' });
+    }
+});
+
+// POST - /api/collaborations/invites/:invite_id/decline - Decline the invitation from a user
+router.post('/invites/:invite_id/decline', async (req, res) => {
+    try {
+        const { invite_id } = req.params;
+        const user = req.user;
+
+        // find the invitation to the collaboration
+        const [invites] = await pool.query(
+            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = "pending" ',
+            [invite_id]
+        );
+        const invite = invites[0];
+        if(!invite) {
+            return res.status(404).json({ error: 'Invite not found or already handled' });
+        }
+        if(invite.email.toLowerCase() !== user.email.toLowerCase()) {
+            return res.status(403).json({ error: 'You are not authorized to decline this invite' });
+        }
+
+        // update the user's invite status
+        await pool.query(
+            'UPDATE COLLABORATION_INVITE SET status = "declined" WHERE invite_id = ?',
+            [invite_id]
+        );
+
+        res.json({ message: 'Invitation successfully declined' });
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Faield to deline the invitation' });
+    }
+});
+
+// GET /api/collaborations/invites - GET pending invites for a user
+router.get('/invites', async (req, res) => {
+    try {
+        const user = req.user;
+        const [invites] = await pool.query(
+            'SELECT * FROM COLLABORATION_INVITE WHERE email = ? AND status = "pending"',
+            [user.email]
+        );
+
+        res.json(invites);
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to fetch invites' });
     }
 });
 

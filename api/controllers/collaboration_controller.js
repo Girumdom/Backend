@@ -5,8 +5,9 @@ const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserI
     getCollaborationByID, updateCollaboration, deleteCollaboration, 
     addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, 
     removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
-    getCollaborationMemories, collaborationExists, createCollaborationInvite
+    getCollaborationMemories, collaborationExists, createCollaborationInvite, isEmailMemberOfCollaboration
 } = require('../connections/collaboration_functions');
+const pool = require('../connections/pool');
 
 const { getUserByEmail } = require('../connections/users')
 
@@ -289,8 +290,8 @@ router.post('/invites/:invite_id/decline', async (req, res) => {
     }
 });
 
-// GET /api/collaborations/invites - GET pending invites for a user
-router.get('/invites', async (req, res) => {
+// GET /api/collaborations/invites/pending - GET pending invites for a user
+router.get('/invites/pending', async (req, res) => {
     try {
         const user = req.user;
         const [invites] = await pool.query(
@@ -360,7 +361,7 @@ router.put('/:id/members/:userID', async (req, res) => {
 router.get('/:id/members', async (req, res) => {
     try {
         const { id: collaborationID } = req.params;
-        const loggedInUserID = req.user.user_id;
+        const loggedInUserID = req.user?.user_id;
 
         // Check if user is a members of the collaboration
         const role = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
@@ -373,6 +374,33 @@ router.get('/:id/members', async (req, res) => {
 
     } catch (error) {
         res.status(500).json({ error: error.message || 'Failed to fetch collaboration members' });
+    }
+});
+
+// GET /api/collaborations/:id/members/exists 
+router.get('/:id/members/exists', async (req, res) => {
+    try {
+        const { id: collaborationID } = req.params;
+        const { email } = req.query;
+        const loggedInUserID = req.user?.user_id;
+
+        if (!loggedInUserID) return res.status(401).json({ error: 'Unauthorized' });
+        if (!/^\d+$/.test(String(collaborationID))) {
+            return res.status(400).json({ error: 'Invalid collaboration id' });
+        };
+        if (typeof email !== 'string' || !/\S+@\S+\.\S+/.test(email.trim())) {
+            return res.status(400).json({ error: 'Invalid email' });
+        };
+
+        const role = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
+        if (!role) {
+            return res.status(404).json({ error: 'Access denied. You are not a member of this collaboration.' });
+        }
+
+        const exists = await isEmailMemberOfCollaboration(collaborationID, email.trim());
+        return res.status(200).json({ exists });
+    } catch (error) {
+        return res.status(500).json({ error: error.message || 'Failed to check member existence' });
     }
 });
 

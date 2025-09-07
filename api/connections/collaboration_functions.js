@@ -13,7 +13,7 @@ async function getUserRoleInCollaboration(userID, collaborationID) {
 }
 
 // Collaboration entity functions
-async function createCollaborationInvite(collaborationID, email, status, invitedBy) {
+async function createCollaborationInvite(collaborationID, email, role, invitedBy) {
     try {
         // check for existing pending user invite
         const sql =  ' SELECT * FROM COLLABORATION_INVITE WHERE collaboration_id = ? AND email = ? AND status = "pending" ';
@@ -25,8 +25,8 @@ async function createCollaborationInvite(collaborationID, email, status, invited
 
         // insert a new invite
         await pool.query(
-            'INSERT INTO COLLABORATION_INVITE (collaboration_id, email, status, invited_by) VALUES (?, ?, ?, ?)',
-            [collaborationID, email, status, invitedBy]
+            'INSERT INTO COLLABORATION_INVITE (collaboration_id, email, role, invited_by) VALUES (?, ?, ?, ?)',
+            [collaborationID, email, role, invitedBy]
         );
 
         return { message: 'Invitation sent successfully!' };
@@ -38,32 +38,32 @@ async function createCollaborationInvite(collaborationID, email, status, invited
 
 // Invite a user to a collaboration function
 
-// async function createCollaboration(name, description, mainUserID) {
-//     const connection = await pool.getConnection();
-//     try {
-//         await connection.beginTransaction();
+async function createCollaboration(name, description, mainUserID) {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
 
-//         // Create the collaboration
-//         const collaborationSQL = `INSERT INTO COLLABORATION (name, description, main_user_id) VALUES (?, ?, ?)`;
-//         const [collaborationResult] = await connection.query(collaborationSQL, [name, description, mainUserID]);
-//         const collaborationID = collaborationResult.insertId;
+        // Create the collaboration
+        const collaborationSQL = `INSERT INTO COLLABORATION (name, description, main_user_id) VALUES (?, ?, ?)`;
+        const [collaborationResult] = await connection.query(collaborationSQL, [name, description, mainUserID]);
+        const collaborationID = collaborationResult.insertId;
 
-//         // Add the creator to the USER_COLLABORATION table as the 'owner'
-//         const memberSQL = `INSERT INTO USER_COLLABORATION (user_id, collaboration_id, role) VALUES (?, ?, 'owner')`;
-//         await connection.query(memberSQL, [mainUserID, collaborationID]);
+        // Add the creator to the USER_COLLABORATION table as the 'owner'
+        const memberSQL = `INSERT INTO USER_COLLABORATION (user_id, collaboration_id, role) VALUES (?, ?, 'owner')`;
+        await connection.query(memberSQL, [mainUserID, collaborationID]);
 
-//         await connection.commit();
+        await connection.commit();
 
-//         // return the full details of the newly created collaboration
-//         return getCollaborationByID(collaborationID);
-//     } catch (error) {
-//         await connection.rollback();
-//         console.error('Error in createCollaboration:', error);
-//         throw new Error('Failed to create collaboration');
-//     } finally {
-//         connection.release();   
-//     }
-// }
+        // return the full details of the newly created collaboration
+        return getCollaborationByID(collaborationID);
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error in createCollaboration:', error);
+        throw new Error('Failed to create collaboration');
+    } finally {
+        connection.release();   
+    }
+}
 
 // check if an existing collaboration already exists
 async function collaborationExists(collaborationID) {
@@ -205,6 +205,27 @@ async function getCollaborationMembers(collaborationID) {
     }
 }
 
+async function isEmailMemberOfCollaboration(collaborationId, email) {
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    const sql = `
+    SELECT 1
+    FROM \`USER_COLLABORATION\` uc
+    INNER JOIN \`USER\` u ON u.user_id = uc.user_id
+    WHERE uc.collaboration_id = ?
+      AND LOWER(TRIM(u.email)) = ?
+    LIMIT 1
+  `;
+  const params = [Number(collaborationId), normalizedEmail]
+
+  return new Promise((resolve, reject) => {
+    pool.query(sql, params, (error, results) => {
+        if (error) return reject(error);
+        resolve(results && results.length > 0);
+    });
+  });
+}
+
 /*
 COLLABORATION MEMORIES FUNCTIONS
 */
@@ -295,4 +316,6 @@ module.exports = {
     getCollaborationMemories,
     collaborationExists,
     createCollaborationInvite,
+    createCollaboration,
+    isEmailMemberOfCollaboration
 };

@@ -206,9 +206,9 @@ async function getCollaborationMembers(collaborationID) {
 }
 
 async function isEmailMemberOfCollaboration(collaborationId, email) {
-    const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedEmail = String(email).trim().toLowerCase();
 
-    const sql = `
+  const sql = `
     SELECT 1
     FROM \`USER_COLLABORATION\` uc
     INNER JOIN \`USER\` u ON u.user_id = uc.user_id
@@ -216,14 +216,16 @@ async function isEmailMemberOfCollaboration(collaborationId, email) {
       AND LOWER(TRIM(u.email)) = ?
     LIMIT 1
   `;
-  const params = [Number(collaborationId), normalizedEmail]
 
-  return new Promise((resolve, reject) => {
-    pool.query(sql, params, (error, results) => {
-        if (error) return reject(error);
-        resolve(results && results.length > 0);
-    });
-  });
+  const params = [Number(collaborationId), normalizedEmail];
+
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(sql, params);
+    return rows.length > 0;
+  } finally {
+    connection.release();
+  }
 }
 
 /*

@@ -377,7 +377,7 @@ router.get('/:id/members', async (req, res) => {
     }
 });
 
-// GET /api/collaborations/:id/members/exists 
+// GET /api/collaborations/:id/members/exists=
 router.get('/:id/members/exists', async (req, res) => {
     try {
         const { id: collaborationID } = req.params;

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { createMemoryTTS, getTTSByMemoryID } = require('../connections/tts');
+const { cloudinary } = require('../connections/cloudinary');
+const { createMemoryTTS, getTTSByMemoryID, createAudio } = require('../connections/tts');
 
 // POST /api/tts - Generate TTS
 router.post('/', async (req, res) => {
@@ -54,6 +55,49 @@ router.post('/audio', async (req, res) => {
   } catch (error) {
     console.error("Error saving audio metadata:", error);
     res.status(500).json({ error: "Failed to save audio metadata" });
+  }
+});
+
+router.post('/audio/base64', async (req, res) => {
+  try {
+    const { memory_id, audio_data, user_id } = req.body;
+
+    if (!memory_id || !audio_data) {
+      return res.status(400).json({ error: 'Invalid request format' });
+    }
+
+    // Upload audio to Cloudinary
+    const result = await cloudinary.uploader.upload(audio_data, {
+      resource_type: 'video', // cloudinary treats audio files as 'video' type
+      folder: 'girumdom_audio',
+      public_id: `tts_${memory_id}_${Date.now()}`
+    });
+
+    // calculate audio duration (estimate for now)
+    const estimatedDuration = Math.round(result.bytes / 16000); // rough estimate: 16KB per second
+
+    // save audio metadata to database using the new function
+    const audio = await createAudio({
+      filename: `tts_${memory_id}.wav`,
+      file_path: result.secure_url,
+      file_size: result.bytes,
+      duration: estimatedDuration,
+      memory_id,
+      uploaded_by_user_id: user_id || 1
+    });
+
+    res.status(201).json({
+      message: 'Audio uploaded successfully',
+      audio_url: result.secure_url,
+      audio_id: audio.audio_id
+    });
+
+  } catch (error) {
+    console.error('Audio upload error:', error);
+    res.status(500).json({
+      error: 'Audio upload failed',
+      details: error.message
+    });
   }
 });
 

@@ -40,9 +40,15 @@ router.get('/:reminder_id', verifyToken, async (req, res) => {
 router.post('/', verifyToken, async (req, res) => {
     try {
         const { title, description, reminder_date } = req.body;
+        const repeat_interval = req.body.repeat_interval || 'never';
 
         const created_by_user_id = req.user.user_id; // Get the user ID from the token
 
+        // validation for repeat interval
+        const allowedIntervals = ['never', 'daily', 'weekly'];
+        if (!allowedIntervals.includes(repeat_interval)) {
+            return res.status(400).json({ error: `Invalid repeat_interval. Must be one of: ${allowedIntervals,join(', ')}`, });
+        }
 
         if (!title || !reminder_date) {
             return res.status(400).json({
@@ -50,19 +56,14 @@ router.post('/', verifyToken, async (req, res) => {
                 received_data: req.body
             });
         }
-        const reminder = await createReminder(title, description, reminder_date, created_by_user_id);
+        const reminder = await createReminder(title, description, reminder_date, created_by_user_id, repeat_interval);
 
         if (!reminder) {
             throw new Error("Reminder creation returned null");
         }
 
-        res.status(201).json({
-            reminder_id: reminder.reminder_id || reminder.id,
-            title: reminder.title,
-            description: reminder.description,
-            reminder_date: reminder.reminder_date,
-            created_by_user_id: reminder.created_by_user_id
-        });
+        res.status(201).json(reminder);
+        
     } catch (error) {
         console.error("Reminder creation error:", {
             error: error.message,

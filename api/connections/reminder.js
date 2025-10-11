@@ -6,7 +6,7 @@ const pool = require('./pool');
 async function getAllRemindersByUserID(created_by_user_id){
     try {
         const [result] = await pool.query(
-            'SELECT * FROM REMINDER WHERE created_by_user_id = ?',
+            'SELECT reminder_id, title, description, reminder_date, repeat_interval FROM REMINDER WHERE created_by_user_id = ? ORDER BY reminder_date ASC',
             [created_by_user_id]
         );
         return result;
@@ -31,11 +31,11 @@ async function getReminderByID(reminder_id, created_by_user_id){
 }
 
 // CREATE A NEW REMINDER for a specific user id
-async function createReminder(title, description, reminder_date, created_by_user_id){
+async function createReminder(title, description, reminder_date, created_by_user_id, repeat_interval){
     try {
         const [result] = await pool.query(
-            `INSERT INTO REMINDER (title, description, reminder_date, created_by_user_id, memory_id)
-            VALUES (?, ?, ?, ?, NULL)`, [title, description, reminder_date, created_by_user_id]
+            `INSERT INTO REMINDER (title, description, reminder_date, created_by_user_id, memory_id, repeat_interval)
+            VALUES (?, ?, ?, ?, NULL, ?)`, [title, description, reminder_date, created_by_user_id, repeat_interval]
         );
         return getReminderByID(result.insertId, created_by_user_id);
     } catch (error) {

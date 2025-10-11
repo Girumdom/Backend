@@ -5,10 +5,17 @@ const pool = require('./pool');
 //GET ALL USER'S CREATED MEMORY
 async function getMemoryByUserID(user_id) {
     try {
-        const [result] = await pool.query(
-            'SELECT * FROM MEMORY WHERE user_id = ?',
-            [user_id]
-        );
+        const sql = `
+            SELECT 
+                m.*,
+                a.file_path AS audio_url 
+            FROM 
+                MEMORY m 
+            LEFT JOIN 
+                AUDIO a ON m.memory_id = a.memory_id 
+            WHERE 
+                m.user_id = ?`;
+        const [result] = await pool.query(sql, [user_id]);
         return result;
     } catch (error) {
         console.error('Error in the function getMemoryByUserID:', error);
@@ -19,12 +26,18 @@ async function getMemoryByUserID(user_id) {
 // GET A SINGLE MEMORY BY ID USING USER"S ID
 async function getMemoryByID(memory_id, user_id) {
     try {
-        const [result] = await pool.query(`
-            SELECT * FROM MEMORY 
-            WHERE memory_id = ? AND user_id = ?`, 
-            [memory_id, user_id]
-        );
-        return result[0] || null;
+        const sql = `
+            SELECT 
+                m.*,
+                a.file_path AS audio_url
+            FROM 
+                MEMORY m
+            LEFT JOIN
+                AUDIO a ON m.memory_id = a.memory_id
+            WHERE m.memory_id = ? AND m.user_id = ?`;
+
+        const [result] = await pool.query(sql, [memory_id, user_id]);
+        return result[0] || null; // return the first row or return null if not found
     } catch (error) {
         console.error('Error in the function getMemoryByID:', error);
         throw new Error('Failed to fetch memory by ID');

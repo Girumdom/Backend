@@ -19,10 +19,18 @@ async function getStorytellersByUserID(user_id) {
 //GET A SINGLE STORYTELLER BY ID
 async function getStoryByID(storyteller_id, user_id) {
     try {
-        const [result] = await pool.query(`SELECT * FROM STORYTELLER WHERE storyteller_id = ? AND user_id = ? `,
-            [storyteller_id, user_id]
-        );
+        let query = 'SELECT * FROM STORYTELLER WHERE storyteller_id = ?';
+        const params = [storyteller_id];
+
+        // If a user_id is provided, add it to the query for security
+        if (user_id) {
+            query += ' AND user_id = ?';
+            params.push(user_id);
+        }
+
+        const [result] = await pool.query(query, params);
         return result[0] || null;
+
     } catch (error) {
         console.error('Error in the function getStoryByID:', error);
         throw new Error('Failed to fetch storyteller by ID');

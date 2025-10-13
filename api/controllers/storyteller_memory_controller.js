@@ -6,6 +6,8 @@ const { getStoryByID } = require('../connections/storyteller');
 const { getImagesByMemoryID } = require('../connections/photoImage');
 const { getTTSByMemoryID } = require('../connections/tts');
 
+const verifyToken = require('../middleware/auth');
+
 router.use(express.json());
 
 router.use((err, req, res, next) => {
@@ -28,7 +30,7 @@ async function enrichMemoryWithMediaData(memory) {
 }
 
 // GET all memories for a storyteller
-router.get('/storyteller/:storyteller_id', async (req, res) => {
+router.get('/storyteller/:storyteller_id', verifyToken, async (req, res) => {
     try {
         const storyteller_id = req.params.storyteller_id;
         
@@ -66,26 +68,26 @@ router.get('/storyteller/:storyteller_id', async (req, res) => {
 });
 
 // Associate a memory with a storyteller
-router.post('/', async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
     try {
       console.log('Incoming association request:', req.body);
       const { storyteller_id, memory_id } = req.body;
+      const loggedInUserID = req.user.user_id;
       
       if (!storyteller_id || !memory_id) {
-        console.log('Missing parameters');
         return res.status(400).json({ error: 'storyteller_id and memory_id are required' });
       }
       
-      // Verify both exist
+      // Verify if both exist
       console.log('Verifying storyteller exists...');
-      const storyteller = await getStoryByID(storyteller_id);
+      const storyteller = await getStoryByID(storyteller_id, loggedInUserID);
       if (!storyteller) {
         console.log('Storyteller not found');
         return res.status(404).json({ error: 'Storyteller not found' });
       }
       
       console.log('Verifying memory exists...');
-      const memory = await getMemoryByID(memory_id);
+      const memory = await getMemoryByID(memory_id, loggedInUserID);
       if (!memory) {
         console.log('Memory not found');
         return res.status(404).json({ error: 'Memory not found' });
@@ -130,7 +132,7 @@ router.post('/', async (req, res) => {
       console.error('Association error:', {
         message: error.message,
         stack: error.stack,
-        sqlMessage: error.sqlMessage, // If this is a MySQL error
+        sqlMessage: error.sqlMessage,
         body: req.body
       });
       res.status(500).json({ 
@@ -141,7 +143,7 @@ router.post('/', async (req, res) => {
   });
 
 // GET a specific memory associated with a storyteller
-router.get('/:storyteller_id/:memory_id', async (req, res) => {
+router.get('/:storyteller_id/:memory_id', verifyToken, async (req, res) => {
     try {
         const { storyteller_id, memory_id } = req.params;
         
@@ -178,7 +180,7 @@ router.get('/:storyteller_id/:memory_id', async (req, res) => {
 });
 
 // DELETE association between storyteller and memory
-router.delete('/:storyteller_id/:memory_id', async (req, res) => {
+router.delete('/:storyteller_id/:memory_id', verifyToken, async (req, res) => {
     try {
         const { storyteller_id, memory_id } = req.params;
         
@@ -199,7 +201,7 @@ router.delete('/:storyteller_id/:memory_id', async (req, res) => {
 });
 
 // GET all storytellers associated with a memory
-router.get('/memory/:memory_id', async (req, res) => {
+router.get('/memory/:memory_id', verifyToken, async (req, res) => {
     try {
         const memory_id = req.params.memory_id;
         

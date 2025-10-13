@@ -192,11 +192,17 @@ async function editMemberRoleInCollaboration(collaborationID, userID, newRole) {
 // GET MEMBERS IN A COLLABORATION
 async function getCollaborationMembers(collaborationID) {
     try {
-        const sql = `SELECT u.user_id, u.fullname, u.email, uc.role AS collaboration_role, uc.joined_at
-                    FROM USER_COLLABORATION uc
-                    JOIN USER u ON uc.user_id = u.user_id
-                    WHERE uc.collaboration_id = ?
-                    ORDER BY uc.joined_at ASC;`;
+        const sql = `
+            SELECT
+                u.user_id,
+                u.fullname,
+                u.email,
+                uc.role,
+                uc.joined_at
+            FROM USER_COLLABORATION uc
+            JOIN USER u ON uc.user_id = u.user_id
+            WHERE uc.collaboration_id = ?
+            ORDER BY uc.joined_at ASC;`;
         const [rows] = await pool.query(sql, [collaborationID]);
         return rows;
     } catch (error) {
@@ -262,16 +268,23 @@ async function removeMemoryFromCollaboration(collaborationID, memoryID) {
 // GET THE MEMORIES OF A COLLABORATION
 async function getCollaborationMemories(collaborationID) {
     try {
-        const sql = `SELECT m.memory_id, m.title, m.content, m.date_of_event, cm.added_at, cm.added_by_user_id, u.fullname as added_by_username, p.photo_id, p.file_path
-                    FROM COLLABORATION_MEMORY cm
-                    JOIN MEMORY m ON cm.memory_id = m.memory_id
-                    JOIN USER u ON cm.added_by_user_id = u.user_id
-                    LEFT JOIN PHOTO_IMAGE p ON m.memory_id = p.memory_id
-                    WHERE cm.collaboration_id = ?
-                    ORDER BY cm.added_at DESC`;
-        const [rows] = await pool.query(sql, [collaborationID])
+        const sql = `
+            SELECT
+                m.memory_id, m.title, m.content, m.date_of_event,
+                cm.added_at, cm.added_by_user_id,
+                u.fullname as added_by_username,
+                p.photo_id, p.file_path as image_path,
+                a.file_path as audio_url -- 1. Select the audio URL
+            FROM COLLABORATION_MEMORY cm
+            JOIN MEMORY m ON cm.memory_id = m.memory_id
+            JOIN USER u ON cm.added_by_user_id = u.user_id
+            LEFT JOIN PHOTO_IMAGE p ON m.memory_id = p.memory_id
+            LEFT JOIN AUDIO a ON m.memory_id = a.memory_id -- 2. Add the LEFT JOIN for AUDIO
+            WHERE cm.collaboration_id = ?
+            ORDER BY cm.added_at DESC`;
+        
+        const [rows] = await pool.query(sql, [collaborationID]);
 
-        // Group memories by memory_id
         const memoriesMap = new Map();
 
         rows.forEach(row => {
@@ -283,7 +296,8 @@ async function getCollaborationMemories(collaborationID) {
                     date_of_event: row.date_of_event,
                     added_at: row.added_at,
                     added_by_user_id: row.added_by_user_id,
-                    fullname: row.added_by_username,
+                    added_by_username: row.added_by_username,
+                    audio_url: row.audio_url, 
                     images: []
                 });
             }
@@ -291,7 +305,7 @@ async function getCollaborationMemories(collaborationID) {
             if (row.photo_id) {
                 memoriesMap.get(row.memory_id).images.push({
                     photo_id: row.photo_id,
-                    file_path: row.file_path
+                    file_path: row.image_path 
                 });
             }
         });
@@ -301,6 +315,12 @@ async function getCollaborationMemories(collaborationID) {
         console.error('Error in getCollaborationMemories:', error);
         throw new Error('Failed to fetch collaboration memories');
     }
+}
+
+async function isUserInCollaboration(user_id, collaboration_id) {
+    const sql = `SELECT 1 FROM USER_COLLABORATION WHERE user_id = ? AND collaboration_id = ?`;
+    const [rows] = await pool.query(sql, [user_id, collaboration_id]);
+    return rows.length > 0;
 }
 
 module.exports = {
@@ -319,5 +339,6 @@ module.exports = {
     collaborationExists,
     createCollaborationInvite,
     createCollaboration,
-    isEmailMemberOfCollaboration
+    isEmailMemberOfCollaboration,
+    isUserInCollaboration
 };

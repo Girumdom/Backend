@@ -5,7 +5,7 @@ const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserI
     getCollaborationByID, updateCollaboration, deleteCollaboration, 
     addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, 
     removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
-    getCollaborationMemories, collaborationExists, createCollaborationInvite, isEmailMemberOfCollaboration
+    getCollaborationMemories, collaborationExists, createCollaborationInvite, isEmailMemberOfCollaboration, isUserInCollaboration
 } = require('../connections/collaboration_functions');
 const pool = require('../connections/pool');
 
@@ -13,7 +13,7 @@ const { getUserByEmail } = require('../connections/users')
 
 const inviteRateLimit = new Map();
 
-router.use(verifyToken); // Ensures that all routes in this file are protected by token verification
+router.use(verifyToken);
 
 // helper functions
 
@@ -82,22 +82,39 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/collaborations/:id - Get a specific collaboration by ID
-router.get('/:id', async (req, res) => {
+// GET /api/collaboration/:collaboration_id - Fetch full details of a single collaboration
+router.get('/:collaboration_id', verifyToken, async (req, res) => {
     try {
-        const { id } = req.params;
+        const { collaboration_id } = req.params;
         const loggedInUserID = req.user.user_id;
 
-        // Check if the user is a member of the collaboration
-        const role = await getUserRoleInCollaboration(loggedInUserID, id);
-        if(!role) return res.status(403).json({ message: 'Access denied. You are not a member of this collaboration.' });
+        // Security check 
+        const isMember = await isUserInCollaboration(loggedInUserID, collaboration_id);
+        if (!isMember) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
 
-        const collaboration = await getCollaborationByID(id);
-        if(!collaboration) return res.status(404).json({ message: 'Collaboration not found' });
+        const collaborationDetails = await getCollaborationByID(collaboration_id);
+        if (!collaborationDetails) {
+            return res.status(404).json({ error: 'Collaboration not found.' });
+        }
 
-        res.status(200).json(collaboration)
+        // Fetch members and memories in parallel
+        const [members, memories] = await Promise.all([
+            getCollaborationMembers(collaboration_id),
+            getCollaborationMemories(collaboration_id) 
+        ]);
+
+        // Assemble and send the response
+        res.status(200).json({
+            ...collaborationDetails,
+            members,
+            memories
+        });
+
     } catch (error) {
-        res.status(500).json({ message: error.message || 'Failed to fetch collaboration' });
+        console.error('Failed to fetch collaboration details:', error);
+        res.status(500).json({ error: 'Internal server error.' });
     }
 });
 

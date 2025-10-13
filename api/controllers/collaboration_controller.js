@@ -199,8 +199,8 @@ router.post('/:id/members', async (req, res) => {
 
         // Authorization: Only the main user / owner can add new members
         const loggedInUserRole = await getUserRoleInCollaboration(loggedInUserID, collaborationID);
-        if (loggedInUserRole !== 'owner') {
-            return res.status(403).json({ error: 'Only the owner can add members to the collaboration' });
+        if (loggedInUserRole !== 'owner' && loggedInUserRole !== 'editor') {
+            return res.status(403).json({ error: 'Only the owner or editor can add invite to the collaboration' });
         }
 
         // get the logged-in user's email to check if it is a self-invite
@@ -455,6 +455,16 @@ router.post('/:id/memories', async (req, res) => {
         }
         if (!memoryID) {
             return res.status(400).json({ error: 'Memory ID is required' });
+        }
+
+        const [memoryRows] = await pool.query('SELECT user_id FROM MEMORY WHERE memory_id = ?', [memoryID]);
+        const memory = memoryRows[0];
+
+        if (!memory) {
+            return res.status(404).json({ error: 'Memory not found.' });
+        }
+        if (memory.user_id !== loggedInUserID) {
+            return res.status(403).json({ error: 'Forbidden: You can only add your own memories.' });
         }
 
         const result = await addMemoryToCollaboration(collaborationID, memoryID, loggedInUserID);

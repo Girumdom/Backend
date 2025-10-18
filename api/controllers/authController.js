@@ -9,14 +9,11 @@ router.use(express.json());
 // USER SIGNUP - CREATE A NEW USER ACCOUNT - /api/auth/signup
 router.post('/signup', async (req, res) => {
     try {
-        const { email, password, user_type, fullname, role } = req.body;
+        const { email, password, fullname, role } = req.body;
 
         // Validate required fields
-        if (!email || !password || !user_type || !fullname || !role) {
-            return res.status(400).json({
-                error: "Email, Password, User Type, Fullname, and Role are required",
-                received_data: req.body
-            });
+        if (!email || !password || !fullname || !role) {
+            return res.status(400).json({ error: "All fields are required" });
         }
 
         // Password strength validation
@@ -31,7 +28,7 @@ router.post('/signup', async (req, res) => {
         } 
 
         const passwordHash = await bcrypt.hash(password, 10);
-        const user = await createUser(email, passwordHash, user_type, fullname, role);
+        const user = await createUser(email, passwordHash, fullname, role);
         if (!user) {
             throw new Error("User creation returned null");
         }

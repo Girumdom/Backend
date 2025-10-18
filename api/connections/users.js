@@ -51,14 +51,14 @@ async function getUserByUsername(username) { // Function to get a user by userna
     }
 }
 
-async function createUser(email, password_hash, user_type, fullname, role) { // Function to create a new user
-    if (!email || !password_hash || !user_type || !fullname || !role) {
-        throw new Error('Email, password_hash, and user_type are required to create a user');
+async function createUser(email, password_hash, fullname, role) { // Function to create a new user
+    if (!email || !password_hash || !fullname || !role) {
+        throw new Error('Email, password, name, and role are required to create a user');
     }
     try {
         const [result] = await pool.query(
-            'INSERT INTO USER (email, password_hash, user_type, fullname, role) VALUES (?, ?, ?, ?, ?)',
-            [email, password_hash, user_type, fullname, role]
+            'INSERT INTO USER (email, password_hash, fullname, role) VALUES (?, ?, ?, ?)',
+            [email, password_hash, fullname, role]
         );
         return getUserByID(result.insertId);
     } catch (error) {

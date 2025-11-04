@@ -346,8 +346,8 @@ router.delete('/:id/members/:userID', async (req, res) => {
     }
 });
 
-// PUT /api/collaborations/:id/members/:user_id - Edit a user's role in a collaboration
-router.put('/:id/members/:userID', async (req, res) => {
+// PATCH /api/collaborations/:id/members/:user_id - Edit a user's role in a collaboration
+router.patch('/:id/members/:userID', async (req, res) => {
     try {
         const { id: collaborationID, userID } = req.params;
         const { newRole } = req.body;

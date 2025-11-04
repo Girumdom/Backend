@@ -178,7 +178,7 @@ async function removeMemberFromCollaboration(collaborationID, userID) {
 async function editMemberRoleInCollaboration(collaborationID, userID, newRole) {
     try {
         const sql = `UPDATE USER_COLLABORATION SET role= ? WHERE collaboration_id = ? AND user_id = ?`; 
-        const [result] = await pool.query(sql, [collaborationID, userID, newRole]);
+        const [result] = await pool.query(sql, [newRole, collaborationID, userID]);
         if (result.affectedRows === 0) {
             throw new Error('User not found in this collaboration');
         }

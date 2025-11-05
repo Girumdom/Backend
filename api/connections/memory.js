@@ -96,6 +96,32 @@ async function deleteMemory(memory_id, user_id) {
     }
 }
 
+// fetch a memory by ID that is either owned by the user or shared with them via collaborations
+async function getMemoryByIdShared(memory_id, user_id) {
+    try {
+        const sql = `
+            SELECT m.*
+            FROM MEMORY m
+            WHERE m.memory_id = ?
+            AND (
+                m.user_id = ?
+                OR
+                EXISTS (
+                    SELECT 1
+                    FROM USER_COLLABORATION uc
+                    JOIN COLLABORATION_MEMORY cm ON uc.collaboration_id = cm.collaboration_id
+                    WHERE uc.user_id = ?
+                    AND cm.memory_id = ?)
+            )`;
+
+        const [result] = await pool.query(sql, [memory_id, user_id, user_id, memory_id]);
+        return result[0] || null;
+    } catch (error) {
+        console.error('Error in getMemoryByIdShared:', error);
+        throw new Error('Failed to fetch shared memory');
+    }
+}
+
 // END OF MEMORY FUNCTIONS
 
 module.exports = {
@@ -103,5 +129,6 @@ module.exports = {
     getMemoryByID,
     createMemory,
     updateMemory,
-    deleteMemory
+    deleteMemory,
+    getMemoryByIdShared
 }

@@ -1,4 +1,4 @@
-const { getMemoryByUserID, getMemoryByID, createMemory, updateMemory, deleteMemory } = require('../connections/memory');
+const { getMemoryByUserID, getMemoryByID, createMemory, updateMemory, deleteMemory, getMemoryByIdShared } = require('../connections/memory');
 const { getImagesByMemoryID } = require('../connections/photoImage');
 const express = require('express');
 const router = express.Router(); 
@@ -36,14 +36,13 @@ router.get('/', verifyToken, async(req, res) => {
 //GET /memory/:memory_id - FETCH A SINGLE MEMORY
 router.get('/:memory_id', verifyToken, async (req, res) => {
     try {
-        const { memory_id } = req.params; // extract the memory id from request parameters
+        const { memory_id } = req.params; 
         const loggedInUserID = req.user.user_id; // get the user ID from the token
 
-        const memory = await getMemoryByID(memory_id, loggedInUserID);
+        const memory = await getMemoryByIdShared(memory_id, loggedInUserID);
 
         if (!memory) {
             return res.status(404).json({ error: 'Memory not found or you do not have the permission to view it.' });
-
         }
 
         const memoryWithImages = await enrichMemoryWithImages(memory);

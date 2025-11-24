@@ -107,6 +107,16 @@ async function deleteUser(user_id) { // Function to delete a user
     }
 }
 
+async function updateUserPFP(userId, imageUrl) {
+    try {
+        const sql = "UPDATE USER SET profile_picture = ? WHERE user_id = ?";
+        await pool.query(sql, [imageUrl, userId]);
+    } catch (error) {
+        console.error('Error updating user profile picture:', error);
+        throw new Error('Failed to update profile picture');
+    }
+}
+
 // END OF USER FUNCTIONS
 module.exports = {
     getAllUsers,
@@ -115,5 +125,6 @@ module.exports = {
     getUserByUsername,
     createUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    updateUserPFP
 };

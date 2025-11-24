@@ -1,4 +1,4 @@
-const { getAllUsers, getUserByID, getUserByEmail, getUserByUsername, createUser, updateUser } = require('../connections/users');
+const { getAllUsers, getUserByID, getUserByEmail, createUser, updateUser, updateUserPFP } = require('../connections/users');
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -129,5 +129,28 @@ router.delete('/:user_id', verifyToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 })
+
+// PATCH /user/:user_id/profile-picture - UPDATE USER PROFILE PICTURE
+router.patch('/:user_id/profile-picture', verifyToken, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { profile_picture } = req.body;
+
+        if (req.user.user_id !== parseInt(userId)) {
+            return res.status(403).json({ error: 'Unauthorized Access. You can only update your own profile.' });
+        }
+        if (!profile_picture) {
+            return res.status(400).json({ error: 'Profile picture URL is required' });
+        }
+
+        await updateUserPFP(userId, profile_picture);
+
+        res.status(200).json({ message: 'Profile picture updated successfully' });
+    } catch (error) {
+        console.error("Error updating profile picture:", error);
+        res.status(500).json({ error: 'Failed to update profile picture' });
+    }
+})
+
 
 module.exports = router;

@@ -25,6 +25,12 @@ app.use('/uploads', express.static(path.join(__dirname, 'api', 'uploads'), {
     }
   }));
 
+// HEALTH CHECK ENDPOINT
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// ROOT ENDPOINT
 app.get('/', (req, res) => {
     res.send('The app is up and running.')
 });

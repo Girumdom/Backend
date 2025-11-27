@@ -1,7 +1,11 @@
 const mysql2 = require('mysql2');
 const dotenv = require('dotenv');
+const fs = require('fs');
+const path = require('path');
 
 dotenv.config();
+
+const caCertPath = path.join(__dirname, '../../ca.pem');
 
 const pool = mysql2.createPool({
     host: process.env.DB_HOST,
@@ -12,6 +16,11 @@ const pool = mysql2.createPool({
     waitForConnections: true,
     connectionLimit: 5, 
     queueLimit: 0,
+
+    ssl: {
+        ca: fs.readFileSync(caCertPath),
+        rejectUnauthorized: true
+    }
 }).promise();
 
 module.exports = pool;

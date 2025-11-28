@@ -5,7 +5,8 @@ const path = require('path');
 
 dotenv.config();
 
-const caCertPath = path.join(__dirname, '../../ca.pem');
+const cerFileName = process.env.DB_SSL_CERT || 'avn_ca.pem';
+const caCertPath = path.join(__dirname, '../../certs', cerFileName);
 
 const pool = mysql2.createPool({
     host: process.env.DB_HOST,

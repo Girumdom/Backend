@@ -6,7 +6,7 @@ const pool = require('./pool');
 async function getAllRemindersByUserID(created_by_user_id){
     try {
         const [result] = await pool.query(
-            'SELECT reminder_id, title, description, reminder_date, repeat_interval FROM REMINDER WHERE created_by_user_id = ? ORDER BY reminder_date ASC',
+            'SELECT reminder_id, title, description, reminder_date, repeat_interval, is_active, notification_id FROM REMINDER WHERE created_by_user_id = ? ORDER BY reminder_date ASC',
             [created_by_user_id]
         );
         return result;
@@ -81,11 +81,32 @@ async function deleteReminder(reminder_id, created_by_user_id) {
     }
 }
 
+async function toggleReminderStatus(reminder_id, created_by_user_id, is_active, notification_id) {
+    try {
+        const [result] = await pool.query(
+            `UPDATE REMINDER 
+             SET is_active = ?, notification_id = ? 
+             WHERE reminder_id = ? AND created_by_user_id = ?`,
+            [is_active, notification_id, reminder_id, created_by_user_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return null; // Reminder not found or doesn't belong to user
+        }
+
+        return { success: true, reminder_id, is_active };
+    } catch (error) {
+        console.error('Error in toggleReminderStatus:', error);
+        throw new Error('Failed to toggle reminder status');
+    }
+}
+
 // END OF REMINDER FUNCTIONS
 module.exports = {
     getAllRemindersByUserID,
     getReminderByID,
     createReminder,
     updateReminder,
-    deleteReminder
+    deleteReminder,
+    toggleReminderStatus
 }

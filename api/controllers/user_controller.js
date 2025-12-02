@@ -133,17 +133,17 @@ router.delete('/:user_id', verifyToken, async (req, res) => {
 // PATCH /user/:user_id/profile-picture - UPDATE USER PROFILE PICTURE
 router.patch('/:user_id/profile-picture', verifyToken, async (req, res) => {
     try {
-        const { userId } = req.params;
+        const { user_id } = req.params;
         const { profile_picture } = req.body;
 
-        if (req.user.user_id !== parseInt(userId)) {
+        if (req.user.user_id !== parseInt(user_id)) {
             return res.status(403).json({ error: 'Unauthorized Access. You can only update your own profile.' });
         }
         if (!profile_picture) {
             return res.status(400).json({ error: 'Profile picture URL is required' });
         }
 
-        await updateUserPFP(userId, profile_picture);
+        await updateUserPFP(user_id, profile_picture);
 
         res.status(200).json({ message: 'Profile picture updated successfully' });
     } catch (error) {

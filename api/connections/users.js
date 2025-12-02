@@ -123,14 +123,16 @@ async function deleteResetTokens(userId) { // function to delete reset tokens fo
 }
 
 async function saveResetToken(userId, token, expiresAt) { // function to save a reset token
-    const sql = 'INSERT INTO RESET_TOKEN (user_id, token, expires_at) VALUES (?, ?, ?)';
+    const sql = 'INSERT INTO RESET_TOKENS (user_id, token, expires_at) VALUES (?, ?, ?)';
     await pool.execute(sql, [userId, token, expiresAt]);
 }
 
-async function getResetToken(token) { // function to fetch a reset token
-    // chekc for token match and its expiry
-    const sql = 'SELECT * FROM RESET_TOKENS WHERE token = ? AND expires_at > NOW()';
-    const [rows] = await pool.execute(sql, [token]);
+async function getResetToken(userId, token) { // function to fetch a reset token
+    // check for token match and its expiry
+    const sql = 'SELECT * FROM RESET_TOKENS WHERE user_id = ? AND token = ? AND expires_at > ?';
+    const currentTime = new Date();
+    
+    const [rows] = await pool.query(sql, [userId, token, currentTime]);
     return rows[0];
 }
 

@@ -1,4 +1,4 @@
-const { getAllRemindersByUserID, getReminderByID, createReminder, updateReminder, deleteReminder } = require('../connections/reminder');
+const { getAllRemindersByUserID, getReminderByID, createReminder, updateReminder, deleteReminder, toggleReminderStatus } = require('../connections/reminder');
 const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
@@ -74,7 +74,7 @@ router.post('/', verifyToken, async (req, res) => {
     }
 });
 
-// PUT /reminder/:reminder_id - UPDATE A USER'S REMINDER
+// PUT /reminders/:reminder_id - UPDATE A USER'S REMINDER
 router.put('/:reminder_id',  verifyToken, async (req, res) => {
     try {
         const { title, description, reminder_date } = req.body; // Extract title, description, and reminder_date from request body
@@ -93,7 +93,7 @@ router.put('/:reminder_id',  verifyToken, async (req, res) => {
     }
 });
 
-// DELETE /reminder/:reminder_id - DELETE A USER'S REMINDER
+// DELETE /reminders/:reminder_id - DELETE A USER'S REMINDER
 router.delete('/:reminder_id', verifyToken, async (req, res) => {
     try {
         const { reminder_id } = req.params; // Extract reminder_id from request parameters
@@ -110,7 +110,36 @@ router.delete('/:reminder_id', verifyToken, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete reminder.' });
     }
-})
+});
+
+// PATCH - api/reminders/:reminder_id/toggle - Toggle the repeat interval of a reminder
+router.patch('/:reminder_id/toggle', verifyToken, async (req, res) => {
+    const reminderId = req.params.reminder_id;
+    const { is_active, notification_id } = req.body;
+    const userId = req.user.user_id;
+
+    // validation
+    if (typeof is_active === 'undefined') {
+        return res.status(400).json({ error: 'is_active field is required' });
+    }
+
+    try {
+        const result = await toggleReminderStatus(reminderId, userId, is_active, notification_id);
+
+        if (!result) {
+            return res.status(404).json({ error: 'Reminder not found or does not belong to the user' });
+        }
+
+        res.json({
+            message: 'Reminder status updated successfully',
+            updateFields: { is_active, notification_id }
+        });
+
+    } catch (error) {
+        console.error('Toggle API Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 router.use((err, req, res, next) => {
     console.error(err.stack);

@@ -1,7 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { getUserByEmail, getUserByUsername, createUser } = require('../connections/users');
+const { getUserByEmail, getUserByUsername, createUser, deleteResetTokens, saveResetToken, getResetToken, updateUserPassword } = require('../connections/users');
+const sendEmail = require('../utils/sendEmail');
 const router = express.Router();
 
 router.use(express.json());
@@ -101,6 +102,96 @@ router.post('/login', async (req, res) => {
             stack: error.stack
         });
         res.status(500).json({ error: 'Failed to login' });
+    }
+});
+
+// FORGOT PASSWORD - /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required.' });
+        }
+
+        // check if user exists
+        const user = await getUserByEmail(email);
+
+        if (!user) {
+            return res.status(404).json({ message: 'If that email exists, a code has been sent.' });
+        }
+
+        const userId = user.user_id;
+
+        // clean up the old tokens for the user
+        await deleteResetTokens(userId);
+
+        // generate a 6-digit code and expiration time
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+
+        // save the reset token to the database
+        await saveResetToken(userId, resetCode, expiresAt);
+
+        // send an email to the user with the reset code
+        const message = `Your password reset code is: ${resetCode}. This code will expire in 15 minutes.`;
+        await sendEmail(user.email, 'Girumdom Password Reset Code', message);
+
+        res.status(200).json({ message: 'If that email exists, a code has been sent.' });
+
+    } catch (error) {
+        console.error("Forgot Password error:", {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ error: 'Failed to process the request. Please try again later.' });
+    }
+});
+
+// RESET PASSWORD - /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { email, code, newPassword } = req.body;
+
+        if (!email || !code || !newPassword) {
+            return res.status(400).json({ error: 'All fields are required.' });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: 'Password must atleast be 8 characters long' });
+        }
+
+        // find the user by email ot get the id
+        const user = await getUserByEmail(email);
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid request' });
+        }
+
+        const userId = user.user_id;
+
+        // validate the reset token, check if it matches and is not expired
+        const validToken = await getResetToken(userId, code);
+
+        if (!validToken) {
+            return res.status(400).json({ error: 'Invalid or expired code.' });
+        }
+
+        // hash the new password
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+
+        // update the user's password
+        await updateUserPassword(userId, passwordHash);
+
+        // delete the used reset tokens
+        await deleteResetTokens(userId);
+
+        res.status(200).json({ message: 'Password reset successfully!' });
+
+    } catch (error) {
+        console.error("Reset Password error:", {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ error: 'Failed to reset password. Please try again later.' });
     }
 });
 

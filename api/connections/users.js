@@ -117,6 +117,28 @@ async function updateUserPFP(userId, imageUrl) {
     }
 }
 
+async function deleteResetTokens(userId) { // function to delete reset tokens for a user
+    const sql = 'DELETE FROM RESET_TOKENS WHERE user_id = ?';
+    await pool.execute(sql, [userId]);
+}
+
+async function saveResetToken(userId, token, expiresAt) { // function to save a reset token
+    const sql = 'INSERT INTO RESET_TOKEN (user_id, token, expires_at) VALUES (?, ?, ?)';
+    await pool.execute(sql, [userId, token, expiresAt]);
+}
+
+async function getResetToken(token) { // function to fetch a reset token
+    // chekc for token match and its expiry
+    const sql = 'SELECT * FROM RESET_TOKENS WHERE token = ? AND expires_at > NOW()';
+    const [rows] = await pool.execute(sql, [token]);
+    return rows[0];
+}
+
+async function updateUserPassword(userId, newPasswordHash) { // function to update user password
+    const sql = 'UPDATE USER SET password_hash = ? WHERE user_id = ?';
+    await pool.execute(sql, [newPasswordHash, userId]);
+}
+
 // END OF USER FUNCTIONS
 module.exports = {
     getAllUsers,
@@ -126,5 +148,9 @@ module.exports = {
     createUser,
     updateUser,
     deleteUser,
-    updateUserPFP
+    updateUserPFP,
+    deleteResetTokens,
+    saveResetToken,
+    getResetToken,
+    updateUserPassword
 };

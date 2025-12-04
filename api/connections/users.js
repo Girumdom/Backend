@@ -17,8 +17,16 @@ async function getUserByID(user_id) { // Function to get a user by ID
         throw new Error('User ID is required to fetch user');
     }
     try {
-        const [result] = await pool.query('SELECT * FROM USER WHERE user_id = ?', [user_id]);
-        return result[0] || null;
+        const query = `
+        SELECT 
+            u.*, 
+            (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
+            (SELECT COUNT(*) FROM COLLABORATION WHERE main_user_id = u.user_id) AS collaboration_count
+        FROM USER u
+        WHERE u.email = ?
+        `;
+        const [rows] = await pool.query(query, [email]);
+        return rows[0];
     } catch (error) {
         console.error('Error in the function getUserByID:', error);
         throw new Error('Failed to fetch user by ID');
@@ -30,8 +38,16 @@ async function getUserByEmail(email){ // Function to get a user by email
         throw new Error('Email is required to fetch user');
     }
     try {
-        const [result] = await pool.query('SELECT * FROM USER WHERE email = ?', [email]);
-        return result[0] || null;
+        const query = `
+        SELECT 
+            u.*, 
+            (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
+            (SELECT COUNT(*) FROM COLLABORATION WHERE main_user_id = u.user_id) AS collaboration_count
+        FROM USER u
+        WHERE u.email = ?
+        `;
+        const [rows] = await pool.query(query, [email]);
+        return rows[0];
     } catch (error) {
         console.error('Error in the function getUserByEmail:', error);
         throw new Error('Failed to fetch user by email');

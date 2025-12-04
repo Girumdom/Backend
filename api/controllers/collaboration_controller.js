@@ -312,8 +312,8 @@ router.get('/invites/pending', async (req, res) => {
     try {
         const user = req.user;
         const [invites] = await pool.query(
-            'SELECT * FROM COLLABORATION_INVITE WHERE email = ? AND status = "pending"',
-            [user.email]
+            'SELECT * FROM COLLABORATION_INVITE WHERE email = ? AND status = ?',
+            [user.email, 'pending'] 
         );
 
         res.json(invites);

@@ -92,7 +92,9 @@ router.post('/login', async (req, res) => {
                 email: user.email,
                 profile_picture: user.profile_picture,
                 fullname: user.fullname,
-                role: user.role
+                role: user.role,
+                memory_count: user.memory_count || 0,
+                collaboration_count: user.collaboration_count || 0,
             }
         });
 

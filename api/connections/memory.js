@@ -100,8 +100,13 @@ async function deleteMemory(memory_id, user_id) {
 async function getMemoryByIdShared(memory_id, user_id) {
     try {
         const sql = `
-            SELECT m.*
+            SELECT 
+                m.*, 
+                a.file_path as audio_url
             FROM MEMORY m
+            
+            LEFT JOIN AUDIO a ON m.memory_id = a.memory_id 
+            
             WHERE m.memory_id = ?
             AND (
                 m.user_id = ?
@@ -112,7 +117,8 @@ async function getMemoryByIdShared(memory_id, user_id) {
                     JOIN COLLABORATION_MEMORY cm ON uc.collaboration_id = cm.collaboration_id
                     WHERE uc.user_id = ?
                     AND cm.memory_id = ?)
-            )`;
+            )
+        `;
 
         const [result] = await pool.query(sql, [memory_id, user_id, user_id, memory_id]);
         return result[0] || null;

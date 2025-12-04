@@ -18,12 +18,12 @@ async function getUserByID(user_id) { // Function to get a user by ID
     }
     try {
         const query = `
-        SELECT 
-            u.*, 
-            (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
-            (SELECT COUNT(*) FROM COLLABORATION WHERE main_user_id = u.user_id) AS collaboration_count
-        FROM USER u
-        WHERE u.email = ?
+            SELECT 
+                u.*,
+                (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
+                (SELECT COUNT(*) FROM USER_COLLABORATION WHERE user_id = u.user_id) AS collaboration_count
+            FROM USER u
+            WHERE u.email = ?
         `;
         const [rows] = await pool.query(query, [email]);
         return rows[0];
@@ -39,12 +39,12 @@ async function getUserByEmail(email){ // Function to get a user by email
     }
     try {
         const query = `
-        SELECT 
-            u.*, 
-            (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
-            (SELECT COUNT(*) FROM COLLABORATION WHERE main_user_id = u.user_id) AS collaboration_count
-        FROM USER u
-        WHERE u.email = ?
+            SELECT 
+                u.*, 
+                (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
+                (SELECT COUNT(*) FROM USER_COLLABORATION WHERE user_id = u.user_id) AS collaboration_count
+            FROM USER u
+            WHERE u.email = ?
         `;
         const [rows] = await pool.query(query, [email]);
         return rows[0];

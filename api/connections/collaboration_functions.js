@@ -16,8 +16,8 @@ async function getUserRoleInCollaboration(userID, collaborationID) {
 async function createCollaborationInvite(collaborationID, email, role, invitedBy) {
     try {
         // check for existing pending user invite
-        const sql =  ' SELECT * FROM COLLABORATION_INVITE WHERE collaboration_id = ? AND email = ? AND status = "pending" ';
-        const [existingInvite] = await pool.query(sql, [collaborationID, email]);
+        const sql =  ' SELECT * FROM COLLABORATION_INVITE WHERE collaboration_id = ? AND email = ? AND status = ? ';
+        const [existingInvite] = await pool.query(sql, [collaborationID, email, pending]);
         
         if (existingInvite.length > 0) {
             throw new Error('An invitation is already pending for this user.');

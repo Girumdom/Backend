@@ -36,18 +36,24 @@ router.get('/:reminder_id', verifyToken, async (req, res) => {
     }
 });
 
-// POST /reminders - CREATE A NEW REMINDER for a specific user
+// POST /api/reminders - CREATE A NEW REMINDER
 router.post('/', verifyToken, async (req, res) => {
     try {
         const { title, description, reminder_date } = req.body;
         const repeat_interval = req.body.repeat_interval || 'never';
+        
+        // 1. Identify the Author
+        const author_id = req.user.user_id; 
 
-        const created_by_user_id = req.user.user_id; // Get the user ID from the token
+        // 2. Identify the Target
+        // If 'assigned_to_id' is sent (from Web), use it. 
+        // Otherwise, default to the author (Self-assignment for Mobile).
+        const target_id = req.body.assigned_to_id || author_id;
 
-        // validation for repeat interval
+        // Validation for repeat interval
         const allowedIntervals = ['never', 'daily', 'weekly'];
         if (!allowedIntervals.includes(repeat_interval)) {
-            return res.status(400).json({ error: `Invalid repeat_interval. Must be one of: ${allowedIntervals,join(', ')}`, });
+            return res.status(400).json({ error: `Invalid repeat_interval. Must be one of: ${allowedIntervals.join(', ')}` });
         }
 
         if (!title || !reminder_date) {
@@ -56,7 +62,16 @@ router.post('/', verifyToken, async (req, res) => {
                 received_data: req.body
             });
         }
-        const reminder = await createReminder(title, description, reminder_date, created_by_user_id, repeat_interval);
+
+        // 3. Call the updated function with BOTH IDs
+        const reminder = await createReminder(
+            title, 
+            description, 
+            reminder_date, 
+            author_id,      // Created By
+            repeat_interval,
+            target_id       // User ID (Target)
+        );
 
         if (!reminder) {
             throw new Error("Reminder creation returned null");

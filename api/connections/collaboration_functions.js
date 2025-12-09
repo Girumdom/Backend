@@ -353,6 +353,121 @@ async function getSeniorsByCaretakerID(caretakerId) {
     }
 }
 
+async function getSeniorDetails(caretakerId, seniorId) {
+    try {
+        // 1. Verify Permission & Get Basic Info (Unchanged)
+        const infoSql = `
+            SELECT 
+                u.user_id, u.fullname, u.email, u.profile_picture,
+                c.collaboration_id, c.name as collaboration_name
+            FROM USER_COLLABORATION uc
+            JOIN COLLABORATION c ON uc.collaboration_id = c.collaboration_id
+            JOIN USER u ON c.main_user_id = u.user_id
+            WHERE uc.user_id = ? 
+            AND u.user_id = ?
+            AND u.role = 'Elderly'
+        `;
+        
+        const [infoRows] = await pool.query(infoSql, [caretakerId, seniorId]);
+        
+        if (infoRows.length === 0) return null;
+        const senior = infoRows[0];
+
+        // 2. Get Senior's Memories (Unchanged)
+        const memorySql = `
+            SELECT m.*, a.file_path as audio_url 
+            FROM MEMORY m
+            LEFT JOIN AUDIO a ON m.memory_id = a.memory_id
+            WHERE m.user_id = ? 
+            ORDER BY m.date_of_event DESC
+        `;
+        const [memories] = await pool.query(memorySql, [seniorId]);
+
+        // 3. Enrich Memories with Images
+        // We loop through each memory and fetch its photos
+        for (let memory of memories) {
+            const [images] = await pool.query(
+                'SELECT file_path FROM PHOTO_IMAGE WHERE memory_id = ?', 
+                [memory.memory_id]
+            );
+            memory.images = images; // Attach the array of images to the memory object
+        }
+
+        // 4. Get Senior's Reminders (Updated for correct column name)
+        const reminderSql = `
+            SELECT * FROM REMINDER 
+            WHERE created_by_user_id = ? 
+            AND reminder_date >= NOW()
+            ORDER BY reminder_date ASC
+        `;
+        const [reminders] = await pool.query(reminderSql, [seniorId]);
+
+        return { ...senior, memories, reminders };
+
+    } catch (error) {
+        console.error('Error in getSeniorDetails:', error);
+        throw error;
+    }
+}
+
+async function createMemoryInCollaboration(collaborationId, memoryData, creatorId) {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Create Memory (Owned by Creator/Caretaker)
+        const [memResult] = await connection.query(
+            'INSERT INTO MEMORY (title, content, date_of_event, user_id, creator_id) VALUES (?, ?, ?, ?, ?)',
+            [memoryData.title, memoryData.content, memoryData.date_of_event, creatorId, creatorId]
+        );
+        const newMemoryId = memResult.insertId;
+
+        // 2. LINK IT TO THE SENIOR'S COLLABORATION
+        await connection.query(
+            'INSERT INTO COLLABORATION_MEMORY (collaboration_id, memory_id, added_by_user_id) VALUES (?, ?, ?)',
+            [collaborationId, newMemoryId, creatorId]
+        );
+
+        await connection.commit();
+        return newMemoryId;
+
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+
+async function createReminderForSenior(collaborationId, reminderData, creatorId) {
+    // 1. Get the Senior ID from the Collaboration
+    const [rows] = await pool.query(
+        'SELECT main_user_id FROM COLLABORATION WHERE collaboration_id = ?', 
+        [collaborationId]
+    );
+    
+    if (rows.length === 0) throw new Error("Collaboration not found");
+    const seniorId = rows[0].main_user_id;
+
+    // 2. Create the Reminder linked to that Senior
+    const sql = `
+        INSERT INTO REMINDER 
+        (title, description, reminder_date, repeat_interval, user_id, created_by_user_id) 
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    const [result] = await pool.query(sql, [
+        reminderData.title,
+        reminderData.description,
+        reminderData.reminder_date,
+        reminderData.repeat_interval,
+        seniorId,  
+        creatorId 
+    ]);
+
+    return result.insertId;
+}
+
 // end of web functions
 
 module.exports = {
@@ -373,5 +488,8 @@ module.exports = {
     createCollaboration,
     isEmailMemberOfCollaboration,
     isUserInCollaboration,
-    getSeniorsByCaretakerID
+    getSeniorsByCaretakerID,
+    getSeniorDetails,
+    createMemoryInCollaboration,
+    createReminderForSenior
 };

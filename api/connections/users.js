@@ -40,9 +40,17 @@ async function getUserByEmail(email){ // Function to get a user by email
     try {
         const query = `
             SELECT 
-                u.*, 
-                (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
-                (SELECT COUNT(*) FROM USER_COLLABORATION WHERE user_id = u.user_id) AS collaboration_count
+            u.*, 
+            (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
+            
+            (
+                SELECT COUNT(*) 
+                FROM USER_COLLABORATION uc
+                JOIN COLLABORATION c ON uc.collaboration_id = c.collaboration_id
+                JOIN USER owner ON c.main_user_id = owner.user_id
+                WHERE uc.user_id = u.user_id
+                AND owner.role = 'Elderly' 
+            ) AS collaboration_count
             FROM USER u
             WHERE u.email = ?
         `;

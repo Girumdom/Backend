@@ -2,12 +2,12 @@ const pool = require('./pool');
 
 // START OF REMINDER FUNCTIONS
 
-// GET ALL REMINDERS FOR A USER
-async function getAllRemindersByUserID(created_by_user_id){
+// GET ALL REMINDERS FOR A USER (The Target)
+async function getAllRemindersByUserID(targetUserID){
     try {
         const [result] = await pool.query(
-            'SELECT reminder_id, title, description, reminder_date, repeat_interval, is_active, notification_id FROM REMINDER WHERE created_by_user_id = ? ORDER BY reminder_date ASC',
-            [created_by_user_id]
+            'SELECT reminder_id, title, description, reminder_date, repeat_interval, is_active, notification_id FROM REMINDER WHERE user_id = ? ORDER BY reminder_date ASC',
+            [targetUserID]
         );
         return result;
     } catch (error) {
@@ -16,12 +16,14 @@ async function getAllRemindersByUserID(created_by_user_id){
     }
 }
 
-// GET A SINGLE REMINDER BY ID USING USER ID
-async function getReminderByID(reminder_id, created_by_user_id){
+// GET A SINGLE REMINDER
+async function getReminderByID(reminder_id, accessing_user_id){
     try{
         const [result] = await pool.query(
-            `SELECT * FROM REMINDER WHERE reminder_id = ? AND created_by_user_id = ?`,
-            [reminder_id, created_by_user_id]
+            `SELECT * FROM REMINDER 
+             WHERE reminder_id = ? 
+             AND (user_id = ? OR created_by_user_id = ?)`, // <--- Allow both Target and Creator to see it
+            [reminder_id, accessing_user_id, accessing_user_id]
         );
         return result[0] || null;
     } catch (error) {
@@ -31,12 +33,16 @@ async function getReminderByID(reminder_id, created_by_user_id){
 }
 
 // CREATE A NEW REMINDER for a specific user id
-async function createReminder(title, description, reminder_date, created_by_user_id, repeat_interval){
+async function createReminder(title, description, reminder_date, created_by_user_id, repeat_interval, target_user_id){
     try {
         const [result] = await pool.query(
-            `INSERT INTO REMINDER (title, description, reminder_date, created_by_user_id, memory_id, repeat_interval)
-            VALUES (?, ?, ?, ?, NULL, ?)`, [title, description, reminder_date, created_by_user_id, repeat_interval]
+            `INSERT INTO REMINDER 
+            (title, description, reminder_date, created_by_user_id, user_id, memory_id, repeat_interval)
+            VALUES (?, ?, ?, ?, ?, NULL, ?)`, 
+            [title, description, reminder_date, created_by_user_id, target_user_id, repeat_interval]
         );
+        
+        // Return the newly created reminder
         return getReminderByID(result.insertId, created_by_user_id);
     } catch (error) {
         console.error('Error in the function createReminder:', error);

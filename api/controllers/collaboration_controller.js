@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
 const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, 
-    getCollaborationByID, updateCollaboration, deleteCollaboration, getSeniorsByCaretakerID,
-    addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, 
+    getCollaborationByID, updateCollaboration, deleteCollaboration, getSeniorsByCaretakerID, getSeniorDetails, createMemoryInCollaboration,
+    addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, createReminderForSenior,
     removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
     getCollaborationMemories, collaborationExists, createCollaborationInvite, isEmailMemberOfCollaboration, isUserInCollaboration
 } = require('../connections/collaboration_functions');
@@ -79,6 +79,25 @@ router.get('/seniors', verifyToken, async (req, res) => {
         res.status(200).json(seniors);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch monitored seniors' });
+    }
+});
+
+// GET /api/collaborations/seniors/:senior_id
+router.get('/seniors/:senior_id', verifyToken, async (req, res) => {
+    try {
+        const caretakerId = req.user.user_id;
+        const { senior_id } = req.params;
+
+        const data = await getSeniorDetails(caretakerId, senior_id);
+
+        if (!data) {
+            return res.status(403).json({ error: "Access denied or Senior not found." });
+        }
+
+        res.json(data);
+    } catch (error) {
+        console.error("Error fetching senior details:", error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
@@ -495,6 +514,48 @@ router.post('/:id/memories', async (req, res) => {
     }
 });
 
+// POST /api/collaborations/:collaboration_id/memories/new
+router.post('/:collaboration_id/memories/new', verifyToken, async (req, res) => {
+    try {
+        const { collaboration_id } = req.params;
+        const { title, content, date_of_event } = req.body;
+        const loggedInUserID = req.user.user_id;
+
+        const newMemoryId = await createMemoryInCollaboration(
+            collaboration_id, 
+            { title, content, date_of_event }, 
+            loggedInUserID
+        );
+
+        res.status(201).json({ 
+            message: 'Memory created and shared successfully', 
+            memory_id: newMemoryId 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create memory' });
+    }
+});
+
+router.post('/:collaboration_id/reminders', verifyToken, async (req, res) => {
+    try {
+        const { collaboration_id } = req.params;
+        const { title, description, reminder_date, repeat_interval } = req.body;
+        const loggedInUserID = req.user.user_id;
+
+        // Call the specific function
+        await createReminderForSenior(
+            collaboration_id,
+            { title, description, reminder_date, repeat_interval },
+            loggedInUserID
+        );
+
+        res.status(201).json({ message: 'Reminder created successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create reminder' });
+    }
+});
 
 
 module.exports = router;

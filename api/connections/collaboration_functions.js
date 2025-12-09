@@ -323,6 +323,38 @@ async function isUserInCollaboration(user_id, collaboration_id) {
     return rows.length > 0;
 }
 
+
+// used web functions
+async function getSeniorsByCaretakerID(caretakerId) {
+    try {
+        const sql = `
+            SELECT 
+                c.collaboration_id,
+                c.name as collaboration_name,
+                c.created_at as connection_date,
+                uc.role as my_role,
+                u.user_id as senior_id,
+                u.fullname as senior_name,
+                u.email as senior_email,
+                u.profile_picture as senior_pfp,
+                (SELECT COUNT(*) FROM MEMORY m WHERE m.user_id = u.user_id) as memory_count
+            FROM USER_COLLABORATION uc
+            JOIN COLLABORATION c ON uc.collaboration_id = c.collaboration_id
+            JOIN USER u ON c.main_user_id = u.user_id
+            WHERE uc.user_id = ? 
+            AND u.role = 'Elderly'
+        `;
+
+        const [rows] = await pool.query(sql, [caretakerId]);
+        return rows;
+    } catch (error) {
+        console.error('Error in getSeniorsByCaretakerID:', error);
+        throw error;
+    }
+}
+
+// end of web functions
+
 module.exports = {
     getUserRoleInCollaboration,
     getCollaborationByUserID,
@@ -340,5 +372,6 @@ module.exports = {
     createCollaborationInvite,
     createCollaboration,
     isEmailMemberOfCollaboration,
-    isUserInCollaboration
+    isUserInCollaboration,
+    getSeniorsByCaretakerID
 };

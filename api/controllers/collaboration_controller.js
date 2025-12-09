@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
 const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, 
-    getCollaborationByID, updateCollaboration, deleteCollaboration, 
+    getCollaborationByID, updateCollaboration, deleteCollaboration, getSeniorsByCaretakerID,
     addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, 
     removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
     getCollaborationMemories, collaborationExists, createCollaborationInvite, isEmailMemberOfCollaboration, isUserInCollaboration
@@ -68,6 +68,17 @@ router.post('/', async (req, res) => {
         res.status(201).json(newCollaboration);
     } catch (error) {
         res.status(500).json({ message: error.message || 'Failed to create collaboration' });
+    }
+});
+
+// GET /api/collaboration/seniors 
+router.get('/seniors', verifyToken, async (req, res) => {
+    try {
+        const caretakerId = req.user.user_id;
+        const seniors = await getSeniorsByCaretakerID(caretakerId);
+        res.status(200).json(seniors);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch monitored seniors' });
     }
 });
 
@@ -483,5 +494,7 @@ router.post('/:id/memories', async (req, res) => {
         res.status(500).json({ error: error.message || 'Failed to add memory to collaboration' });
     }
 });
+
+
 
 module.exports = router;

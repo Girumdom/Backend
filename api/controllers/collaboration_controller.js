@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
-const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, 
+const { getUserRoleInCollaboration, createCollaboration, getCollaborationByUserID, requestConnectionToSenior,
     getCollaborationByID, updateCollaboration, deleteCollaboration, getSeniorsByCaretakerID, getSeniorDetails, createMemoryInCollaboration,
     addMemberToCollaboration, removeMemberFromCollaboration, addMemoryToCollaboration, createReminderForSenior,
-    removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers,
+    removeMemoryFromCollaboration, editMemberRoleInCollaboration, getCollaborationMembers, createDefaultCollaboration,
     getCollaborationMemories, collaborationExists, createCollaborationInvite, isEmailMemberOfCollaboration, isUserInCollaboration
 } = require('../connections/collaboration_functions');
 const pool = require('../connections/pool');
@@ -265,8 +265,8 @@ router.post('/invites/:invite_id/accept', async (req, res) => {
         
         // find/check the invite
         const [invites] = await pool.query(
-            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = "pending" ',
-            [invite_id]
+            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = ?',
+            [invite_id, 'pending']
         );
         const invite = invites[0];
         if (!invite) {
@@ -286,8 +286,8 @@ router.post('/invites/:invite_id/accept', async (req, res) => {
 
         // update the invite status
         await pool.query(
-            'UPDATE COLLABORATION_INVITE SET status = "accepted" WHERE invite_id = ?',
-            [invite_id]
+            'UPDATE COLLABORATION_INVITE SET status = ? WHERE invite_id = ?',
+            ['accepted', invite_id]
         );
 
         res.json({ message: 'Invitaion accepted '});
@@ -296,8 +296,8 @@ router.post('/invites/:invite_id/accept', async (req, res) => {
         // handle duplicate entry
         if (error.code === 'ER_DUP_ENTRY') { 
             await pool.query(
-                'UPDATE COLLABORATION_INVITE SET status = "accepted" WHERE invite_id = ?',
-                [req.params.invite_id]
+                'UPDATE COLLABORATION_INVITE SET status = ? WHERE invite_id = ?',
+                ['accepted', req.params.invite_id]
             );
             return res.status(200).json({ message: 'Already a member, invite marked as accepted ' });
         }
@@ -314,8 +314,8 @@ router.post('/invites/:invite_id/decline', async (req, res) => {
 
         // find the invitation to the collaboration
         const [invites] = await pool.query(
-            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = "pending" ',
-            [invite_id]
+            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = ? ',
+            [invite_id, 'pending']
         );
         const invite = invites[0];
         if(!invite) {
@@ -327,8 +327,8 @@ router.post('/invites/:invite_id/decline', async (req, res) => {
 
         // update the user's invite status
         await pool.query(
-            'UPDATE COLLABORATION_INVITE SET status = "declined" WHERE invite_id = ?',
-            [invite_id]
+            'UPDATE COLLABORATION_INVITE SET status = ? WHERE invite_id = ?',
+            ['declined', invite_id]
         );
 
         res.json({ message: 'Invitation successfully declined' });
@@ -338,21 +338,27 @@ router.post('/invites/:invite_id/decline', async (req, res) => {
 });
 
 // GET /api/collaborations/invites/pending - GET pending invites for a user
-router.get('/invites/pending', async (req, res) => {
+router.get('/invites/pending', verifyToken, async (req, res) => { 
     try {
         const user = req.user;
+        
+        console.log(`Fetching invites for email: ${user.email}`); // Debug Log
+
         const [invites] = await pool.query(
-            `SELECT
-                ci.*,
+            `SELECT 
+                ci.*, 
                 u.fullname AS inviter_name
             FROM COLLABORATION_INVITE ci
-            JOIN USER u ON ci.invited_by = u.user_id
+            LEFT JOIN USER u ON ci.invited_by = u.user_id
             WHERE ci.email = ? AND ci.status = ?`,
-            [user.email, 'pending'] 
+            [user.email, 'pending']
         );
 
+        console.log(`Found ${invites.length} pending invites.`); // Debug Log
         res.json(invites);
+
     } catch (error) {
+        console.error("Error in GET /invites/pending:", error);
         res.status(500).json({ error: error.message || 'Failed to fetch invites' });
     }
 });
@@ -557,5 +563,31 @@ router.post('/:collaboration_id/reminders', verifyToken, async (req, res) => {
     }
 });
 
+// POST /api/collaborations/request-access
+router.post('/request-access', verifyToken, async (req, res) => {
+    try {
+        const { senior_email } = req.body;
+        const caretaker_email = req.user.email; // From your logged-in token
+        const caretaker_id = req.user.user_id;
+
+        if (!senior_email) {
+            return res.status(400).json({ error: "Senior email is required" });
+        }
+
+        if (senior_email.toLowerCase() === caretaker_email.toLowerCase()) {
+            return res.status(400).json({ error: "You cannot connect to yourself." });
+        }
+
+        const result = await requestConnectionToSenior(caretaker_email, senior_email, caretaker_id);
+        
+        res.status(200).json(result);
+
+    } catch (error) {
+        if (error.message.includes("not found") || error.message.includes("already connected")) {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: "Failed to send connection request." });
+    }
+});
 
 module.exports = router;

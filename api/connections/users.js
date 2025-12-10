@@ -23,9 +23,9 @@ async function getUserByID(user_id) { // Function to get a user by ID
                 (SELECT COUNT(*) FROM MEMORY WHERE user_id = u.user_id) AS memory_count,
                 (SELECT COUNT(*) FROM USER_COLLABORATION WHERE user_id = u.user_id) AS collaboration_count
             FROM USER u
-            WHERE u.email = ?
+            WHERE u.user_id = ?
         `;
-        const [rows] = await pool.query(query, [email]);
+        const [rows] = await pool.query(query, [user_id]);
         return rows[0];
     } catch (error) {
         console.error('Error in the function getUserByID:', error);

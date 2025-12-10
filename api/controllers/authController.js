@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { getUserByEmail, getUserByUsername, createUser, deleteResetTokens, saveResetToken, getResetToken, updateUserPassword } = require('../connections/users');
+const { createDefaultCollaboration } = require('../connections/collaboration_functions');
 const sendEmail = require('../utils/sendEmail');
 const router = express.Router();
 
@@ -33,6 +34,12 @@ router.post('/signup', async (req, res) => {
         if (!user) {
             throw new Error("User creation returned null");
         }
+
+        // If the new user is a Senior, give them a collaboration immediately
+        if (user.role === 'Elderly') {
+            await createDefaultCollaboration(user.user_id, user.fullname);
+        }
+
         res.status(201).json({
             user_id: user.user_id || user.id,
             email: user.email,

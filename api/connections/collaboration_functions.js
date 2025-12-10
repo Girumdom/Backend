@@ -468,6 +468,87 @@ async function createReminderForSenior(collaborationId, reminderData, creatorId)
     return result.insertId;
 }
 
+// AUTO CREATE COLLABORATION FOR THE SENIOR WHEN THEY REGISTER
+async function createDefaultCollaboration(userId, fullname) {
+    try {
+        // Create a friendly name like "Juan Cruz's Care Team"
+        const defaultName = `${fullname}'s Collaboration`;
+        
+        const sql = `INSERT INTO COLLABORATION (collaboration_name, main_user_id) VALUES (?, ?)`;
+        
+        const [result] = await pool.query(sql, [defaultName, userId]);
+        
+        console.log(`Auto-created collaboration for user ${userId}: ${defaultName}`);
+        return result.insertId;
+    } catch (error) {
+        console.error("Error creating default collaboration:", error);
+        // We don't want to break the signup if this fails, so we just log it
+        return null; 
+    }
+}
+
+// CARETAKER REQUEST TO CONNECT TO A SENIOR
+async function requestConnectionToSenior(caretakerEmail, seniorEmail, caretakerId) {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Find the Senior's User ID
+        const [users] = await connection.query(
+            'SELECT user_id, role FROM USER WHERE email = ?', 
+            [seniorEmail]
+        );
+
+        if (users.length === 0) {
+            throw new Error("Senior not found. Please check the email address.");
+        }
+        
+        const senior = users[0];
+        // Ensure they are actually a Senior
+        if (senior.role !== 'Elderly') {
+             throw new Error("This user is not registered as a Senior.");
+        }
+
+        // 2. Find the Senior's Collaboration ID
+        const [collabs] = await connection.query(
+            'SELECT collaboration_id FROM COLLABORATION WHERE main_user_id = ?',
+            [senior.user_id]
+        );
+
+        if (collabs.length === 0) {
+            throw new Error("This senior has not set up their collaboration space yet.");
+        }
+        const seniorCollabId = collabs[0].collaboration_id;
+
+        // 3. Check if you are already connected
+        const [existing] = await connection.query(
+            'SELECT * FROM USER_COLLABORATION WHERE collaboration_id = ? AND user_id = (SELECT user_id FROM USER WHERE email = ?)',
+            [seniorCollabId, caretakerEmail]
+        );
+        if (existing.length > 0) {
+            throw new Error("You are already connected to this senior.");
+        }
+
+        // 4. Create the Invitation
+        await connection.query(
+            `INSERT INTO COLLABORATION_INVITE 
+            (collaboration_id, email, role, status, invited_by) 
+            VALUES (?, ?, ?, ?, ?)`,
+            [seniorCollabId, seniorEmail, 'editor', 'pending', caretakerId] 
+        );
+
+        await connection.commit();
+        return { message: "Request sent! Ask the senior to accept it on their app." };
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Error requesting connection:", error);
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+
 // end of web functions
 
 module.exports = {
@@ -491,5 +572,7 @@ module.exports = {
     getSeniorsByCaretakerID,
     getSeniorDetails,
     createMemoryInCollaboration,
-    createReminderForSenior
+    createReminderForSenior,
+    createDefaultCollaboration,
+    requestConnectionToSenior
 };

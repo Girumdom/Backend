@@ -258,82 +258,104 @@ router.post('/:id/members', async (req, res) => {
 });
 
 // POST /api/collaboration/invites/:invite_id/accept - Accept the invitation from the user
-router.post('/invites/:invite_id/accept', async (req, res) => {
+router.post('/invites/:invite_id/accept', verifyToken, async (req, res) => {
     try {
         const { invite_id } = req.params;
-        const user = req.user;
+        const user = req.user; // The person clicking "Accept" (The Senior)
         
-        // find/check the invite
+        // 1. Fetch Invite AND Collaboration Owner info
         const [invites] = await pool.query(
-            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = ?',
+            `SELECT ci.*, c.main_user_id 
+             FROM COLLABORATION_INVITE ci
+             JOIN COLLABORATION c ON ci.collaboration_id = c.collaboration_id
+             WHERE ci.invite_id = ? AND ci.status = ?`,
             [invite_id, 'pending']
         );
+
         const invite = invites[0];
         if (!invite) {
             return res.status(404).json({ error: 'Invite not found or already handled' });
         }
 
-        // validate if the invitation is for the user
+        // 2. Validate Permission
+        // Only the person with the target email can accept
         if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
             return res.status(403).json({ error: 'You are not authorized to accept this invitation.' });
         }
 
-        // add the invited user to USER_COLLABORATION table
+        // 3. Determine WHO to add
+        let userIdToAdd;
+        
+        if (user.user_id === invite.main_user_id) {
+            // CASE: The Owner (Senior) is accepting -> Add the REQUESTER (Caretaker)
+            userIdToAdd = invite.invited_by;
+        } else {
+            // CASE: A normal user is accepting -> Add THEMSELVES
+            userIdToAdd = user.user_id;
+        }
+
+        // 4. Add the correct user to the collaboration
         await pool.query(
             'INSERT INTO USER_COLLABORATION (collaboration_id, user_id, role) VALUES (?, ?, ?)',
-            [invite.collaboration_id, user.user_id, invite.role]
+            [invite.collaboration_id, userIdToAdd, invite.role]
         );
 
-        // update the invite status
+        // 5. Update status
         await pool.query(
             'UPDATE COLLABORATION_INVITE SET status = ? WHERE invite_id = ?',
             ['accepted', invite_id]
         );
 
-        res.json({ message: 'Invitaion accepted '});
+        res.json({ message: 'Invitation accepted' });
 
     } catch (error) {
-        // handle duplicate entry
+        // Handle "Already Member" gracefully
         if (error.code === 'ER_DUP_ENTRY') { 
             await pool.query(
                 'UPDATE COLLABORATION_INVITE SET status = ? WHERE invite_id = ?',
                 ['accepted', req.params.invite_id]
             );
-            return res.status(200).json({ message: 'Already a member, invite marked as accepted ' });
+            return res.status(200).json({ message: 'Already a member, invite marked as accepted' });
         }
-        console.error('Error accepting the invitation:', error);
+        console.error('Error accepting:', error);
         res.status(500).json({ error: error.message || 'Failed to accept invitation' });
     }
 });
 
 // POST - /api/collaborations/invites/:invite_id/decline - Decline the invitation from a user
-router.post('/invites/:invite_id/decline', async (req, res) => {
+router.post('/invites/:invite_id/decline', verifyToken, async (req, res) => {
     try {
         const { invite_id } = req.params;
-        const user = req.user;
+        const user = req.user; 
 
-        // find the invitation to the collaboration
+        // 1. Find the invite
         const [invites] = await pool.query(
-            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = ? ',
+            'SELECT * FROM COLLABORATION_INVITE WHERE invite_id = ? AND status = ?',
             [invite_id, 'pending']
         );
         const invite = invites[0];
-        if(!invite) {
+        
+        if (!invite) {
             return res.status(404).json({ error: 'Invite not found or already handled' });
         }
-        if(invite.email.toLowerCase() !== user.email.toLowerCase()) {
+
+        // 2. Validate Permission
+        // Ensure the person trying to decline is actually the person who received the invite
+        if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
             return res.status(403).json({ error: 'You are not authorized to decline this invite' });
         }
 
-        // update the user's invite status
+        // 3. Update status to 'declined'
         await pool.query(
             'UPDATE COLLABORATION_INVITE SET status = ? WHERE invite_id = ?',
             ['declined', invite_id]
         );
 
         res.json({ message: 'Invitation successfully declined' });
+
     } catch (error) {
-        res.status(500).json({ error: error.message || 'Faield to deline the invitation' });
+        console.error("Error declining invite:", error);
+        res.status(500).json({ error: error.message || 'Failed to decline the invitation' });
     }
 });
 

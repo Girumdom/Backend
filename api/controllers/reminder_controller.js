@@ -90,20 +90,33 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 // PUT /reminders/:reminder_id - UPDATE A USER'S REMINDER
-router.put('/:reminder_id',  verifyToken, async (req, res) => {
+router.put('/:reminder_id', verifyToken, async (req, res) => {
     try {
-        const { title, description, reminder_date } = req.body; // Extract title, description, and reminder_date from request body
-        const { reminder_id } = req.params; // Extract reminder_id from request parameters
+        const { reminder_id } = req.params;
+        // Extract all fields, defaulting repeat_interval if missing
+        const { title, description, reminder_date } = req.body;
+        const repeat_interval = req.body.repeat_interval || 'never'; 
 
-        const created_by_user_id = req.user.user_id; //
-        const updatedReminder = await updateReminder(reminder_id, title, description, reminder_date, created_by_user_id);
+        const loggedInUserID = req.user.user_id; 
+
+        // Call the updated function
+        const updatedReminder = await updateReminder(
+            reminder_id, 
+            title, 
+            description, 
+            reminder_date, 
+            repeat_interval, 
+            loggedInUserID // Pass this as 'accessing_user_id'
+        );
 
         if (!updatedReminder) {
-            return res.status(404).json({ error: 'Reminder not found or does not belong to the user' });
+            return res.status(403).json({ error: 'Reminder not found or permission denied.' });
         }
 
         res.status(200).json(updatedReminder);
+
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: error.message });
     }
 });

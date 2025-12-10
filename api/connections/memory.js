@@ -2,20 +2,33 @@ const pool = require('./pool');
 
 //START OF MEMORY FUNCTIONS
 
-//GET ALL USER'S CREATED MEMORY
+// GET ALL MEMORIES INVOLVING A USER (As Owner OR Creator)
 async function getMemoryByUserID(user_id) {
     try {
         const sql = `
-            SELECT 
+            SELECT DISTINCT
                 m.*,
                 a.file_path AS audio_url 
             FROM 
                 MEMORY m 
             LEFT JOIN 
-                AUDIO a ON m.memory_id = a.memory_id 
+                AUDIO a ON m.memory_id = a.memory_id
+            
+            -- Join to check for shared memories
+            LEFT JOIN COLLABORATION_MEMORY cm ON m.memory_id = cm.memory_id
+            LEFT JOIN USER_COLLABORATION uc ON cm.collaboration_id = uc.collaboration_id
+
             WHERE 
-                m.user_id = ?`;
-        const [result] = await pool.query(sql, [user_id]);
+                m.user_id = ?        -- 1. User own it
+                OR m.creator_id = ?  -- 2. User created it
+                OR uc.user_id = ?    -- 3. It is shared in my collaboration
+            
+            ORDER BY 
+                m.date_of_event DESC
+        `;
+        
+        // Pass user_id 3 times for the 3 conditions
+        const [result] = await pool.query(sql, [user_id, user_id, user_id]);
         return result;
     } catch (error) {
         console.error('Error in the function getMemoryByUserID:', error);

@@ -2,29 +2,50 @@ const pool = require('./pool');
 
 // START OF REMINDER FUNCTIONS
 
-// GET ALL REMINDERS FOR A USER (The Target)
-async function getAllRemindersByUserID(targetUserID){
+// GET ALL REMINDERS INVOLVING A USER (As Target OR Creator)
+async function getAllRemindersByUserID(userID) {
     try {
-        const [result] = await pool.query(
-            'SELECT reminder_id, title, description, reminder_date, repeat_interval, is_active, notification_id FROM REMINDER WHERE user_id = ? ORDER BY reminder_date ASC',
-            [targetUserID]
-        );
+        // UPDATED SQL: Check both columns
+        const sql = `
+            SELECT reminder_id, title, description, reminder_date, repeat_interval, is_active, notification_id 
+            FROM REMINDER 
+            WHERE (user_id = ? OR created_by_user_id = ?) 
+            AND reminder_date >= NOW()
+            ORDER BY reminder_date ASC
+        `;
+        
+        const [result] = await pool.query(sql, [userID, userID]);
         return result;
     } catch (error) {
-        console.error('Error in the function getAllRemindersByUserID:', error);
+        console.error('Error in getAllRemindersByUserID:', error);
         throw new Error('Failed to fetch reminders for user');
     }
 }
 
 // GET A SINGLE REMINDER
-async function getReminderByID(reminder_id, accessing_user_id){
-    try{
-        const [result] = await pool.query(
-            `SELECT * FROM REMINDER 
-             WHERE reminder_id = ? 
-             AND (user_id = ? OR created_by_user_id = ?)`, // <--- Allow both Target and Creator to see it
-            [reminder_id, accessing_user_id, accessing_user_id]
-        );
+async function getReminderByID(reminder_id, accessing_user_id) {
+    try {
+        const sql = `
+            SELECT r.* FROM REMINDER r
+            LEFT JOIN COLLABORATION c ON c.main_user_id = r.user_id
+            LEFT JOIN USER_COLLABORATION uc ON uc.collaboration_id = c.collaboration_id
+            
+            WHERE r.reminder_id = ? 
+            AND (
+                r.created_by_user_id = ? 
+                OR r.user_id = ?
+                OR uc.user_id = ?
+            )
+            LIMIT 1
+        `;
+        
+        const [result] = await pool.query(sql, [
+            reminder_id, 
+            accessing_user_id, 
+            accessing_user_id, 
+            accessing_user_id
+        ]);
+
         return result[0] || null;
     } catch (error) {
         console.error('Error in the function getReminderByID:', error);
@@ -51,20 +72,51 @@ async function createReminder(title, description, reminder_date, created_by_user
 }
 
 // UPDATE A USER'S REMINDER
-async function updateReminder(reminder_id, title, description, reminder_date, created_by_user_id) {
+// api/connections/reminders.js
+
+async function updateReminder(reminder_id, title, description, reminder_date, repeat_interval, accessing_user_id) {
     try {
-        const [result] = await pool.query(
-            `UPDATE REMINDER 
-            SET title = ?, description = ?, reminder_date = ?
-            WHERE reminder_id = ? AND created_by_user_id = ?`,
-            [title, description, reminder_date, reminder_id, created_by_user_id]
-        );
-        // Check if any rows was actually updated
+        console.log(`[DEBUG] Attempting Update: Reminder ${reminder_id} by User ${accessing_user_id} (Checking Permissions...)`);
+
+        // ADVANCED UPDATE QUERY
+        // This query allows the update IF:
+        // 1. You created it (r.created_by_user_id)
+        // 2. You are the target (r.user_id)
+        // 3. You are a MEMBER of a collaboration owned by the target (uc.user_id)
+        const sql = `
+            UPDATE REMINDER r
+            LEFT JOIN COLLABORATION c ON c.main_user_id = r.user_id
+            LEFT JOIN USER_COLLABORATION uc ON uc.collaboration_id = c.collaboration_id
+            
+            SET r.title = ?, r.description = ?, r.reminder_date = ?, r.repeat_interval = ?
+            
+            WHERE r.reminder_id = ? 
+            AND (
+                r.created_by_user_id = ? 
+                OR r.user_id = ?
+                OR uc.user_id = ? 
+            )
+        `;
+
+        const [result] = await pool.query(sql, [
+            title, 
+            description, 
+            reminder_date, 
+            repeat_interval, 
+            reminder_id, 
+            accessing_user_id, // Check created_by
+            accessing_user_id, // Check user_id
+            accessing_user_id  // Check collaboration membership
+        ]);
+
+        console.log(`[DEBUG] Update Result: affectedRows = ${result.affectedRows}`);
+
         if (result.affectedRows === 0) {
-            return null; // No rows updated, possibly reminder not found or does not belong to the user
+            return null; 
         }
 
-        return getReminderByID(reminder_id, created_by_user_id);
+        return getReminderByID(reminder_id, accessing_user_id);
+
     } catch (error) {
         console.error('Error in the function updateReminder:', error);
         throw new Error('Failed to update reminder');
@@ -72,17 +124,33 @@ async function updateReminder(reminder_id, title, description, reminder_date, cr
 }
 
 // DELETE A USER'S REMINDER
-async function deleteReminder(reminder_id, created_by_user_id) {
+// DELETE A REMINDER
+// Updated to allow Creator, Target, OR Collaborator to delete
+async function deleteReminder(reminder_id, accessing_user_id) {
     try {
-
-        const [result] = await pool.query(
-            'DELETE FROM REMINDER WHERE reminder_id = ? AND created_by_user_id = ?',
-            [reminder_id, created_by_user_id]
-        );
+        const sql = `
+            DELETE r
+            FROM REMINDER r
+            LEFT JOIN COLLABORATION c ON c.main_user_id = r.user_id
+            LEFT JOIN USER_COLLABORATION uc ON uc.collaboration_id = c.collaboration_id
+            WHERE r.reminder_id = ? 
+            AND (
+                r.created_by_user_id = ? 
+                OR r.user_id = ?
+                OR uc.user_id = ? 
+            )
+        `;
+        
+        const [result] = await pool.query(sql, [
+            reminder_id, 
+            accessing_user_id, 
+            accessing_user_id, 
+            accessing_user_id
+        ]);
+        
         return result;
-
     } catch (error) {
-        console.error('Error in the function deleteReminder:', error);
+        console.error('Error in deleteReminder:', error);
         throw new Error('Failed to delete reminder');
     }
 }

@@ -144,7 +144,7 @@ router.delete('/:reminder_id', verifyToken, async (req, res) => {
 router.patch('/:reminder_id/toggle', verifyToken, async (req, res) => {
     const reminderId = req.params.reminder_id;
     const { is_active, notification_id } = req.body;
-    const userId = req.user.user_id;
+    const accessingUserId = req.user.user_id;
 
     // validation
     if (typeof is_active === 'undefined') {
@@ -152,7 +152,8 @@ router.patch('/:reminder_id/toggle', verifyToken, async (req, res) => {
     }
 
     try {
-        const result = await toggleReminderStatus(reminderId, userId, is_active, notification_id);
+        // Pass accessing_user_id instead of created_by_user_id
+        const result = await toggleReminderStatus(reminderId, accessingUserId, is_active, notification_id);
 
         if (!result) {
             return res.status(404).json({ error: 'Reminder not found or does not belong to the user' });

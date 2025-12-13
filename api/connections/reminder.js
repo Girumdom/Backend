@@ -145,13 +145,15 @@ async function deleteReminder(reminder_id, accessing_user_id) {
     }
 }
 
-async function toggleReminderStatus(reminder_id, created_by_user_id, is_active, notification_id) {
+async function toggleReminderStatus(reminder_id, accessing_user_id, is_active, notification_id) {
     try {
+        // Allow update if user is the creator OR the target (owner) of the reminder
         const [result] = await pool.query(
             `UPDATE REMINDER 
              SET is_active = ?, notification_id = ? 
-             WHERE reminder_id = ? AND created_by_user_id = ?`,
-            [is_active, notification_id, reminder_id, created_by_user_id]
+             WHERE reminder_id = ? 
+             AND (created_by_user_id = ? OR user_id = ?)`,
+            [is_active, notification_id, reminder_id, accessing_user_id, accessing_user_id]
         );
 
         if (result.affectedRows === 0) {

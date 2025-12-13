@@ -449,17 +449,21 @@ async function createReminderForSenior(collaborationId, reminderData, creatorId)
     if (rows.length === 0) throw new Error("Collaboration not found");
     const seniorId = rows[0].main_user_id;
 
+    // Normalize Date Logic
+    const utcIso = new Date(reminderData.reminder_date).toISOString(); 
+    const storeValue = utcIso.slice(0, 19).replace('T', ' '); 
+
     // 2. Create the Reminder linked to that Senior
     const sql = `
         INSERT INTO REMINDER 
-        (title, description, reminder_date, repeat_interval, user_id, created_by_user_id) 
-        VALUES (?, ?, ?, ?, ?, ?)
+        (title, description, reminder_date, repeat_interval, user_id, created_by_user_id, is_active) 
+        VALUES (?, ?, ?, ?, ?, ?, 1)
     `;
     
     const [result] = await pool.query(sql, [
         reminderData.title,
         reminderData.description,
-        reminderData.reminder_date,
+        storeValue,
         reminderData.repeat_interval,
         seniorId,  
         creatorId 

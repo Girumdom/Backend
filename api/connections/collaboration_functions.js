@@ -197,6 +197,7 @@ async function getCollaborationMembers(collaborationID) {
                 u.user_id,
                 u.fullname,
                 u.email,
+                u.profile_picture,
                 uc.role,
                 uc.joined_at
             FROM USER_COLLABORATION uc

@@ -59,12 +59,13 @@ function isValidRole(role) {
 // POST /api/collaborations - Create a new collaboration
 router.post('/', async (req, res) => {
     try {
-        const { name, description } = req.body;
+        const { name, description, icon } = req.body;
         const mainUserID = req.user.user_id; 
 
         if (!name) return res.status(400).json({ message: 'Collaboration name is required' });
+        const selectedIcon = icon || 'account-group'; // default icon if none provided
 
-        const newCollaboration = await createCollaboration(name, description, mainUserID);
+        const newCollaboration = await createCollaboration(name, description, selectedIcon, mainUserID);
         res.status(201).json(newCollaboration);
     } catch (error) {
         res.status(500).json({ message: error.message || 'Failed to create collaboration' });
@@ -152,7 +153,7 @@ router.get('/:collaboration_id', verifyToken, async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description } = req.body;
+        const { name, description, icon } = req.body;
         const loggedInUserID = req.user.user_id;
 
         // only the owner / main user id can update the collaboration details
@@ -166,8 +167,10 @@ router.put('/:id', async (req, res) => {
         if(!name) {
             return res.status(400).json({ error: 'Collaboration name is required' });
         }
+
+        const iconToSave = icon || collaboration.icon || 'account-group'; // retain existing icon if none provided
         
-        const updatedCollaboration = await updateCollaboration(id, name, description, loggedInUserID);
+        const updatedCollaboration = await updateCollaboration(id, name, description, iconToSave, loggedInUserID);
         res.status(200).json(updatedCollaboration);
     } catch (error) {
         res.status(500).json({ error: error.message || 'Failed to update collaboration' });

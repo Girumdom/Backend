@@ -38,14 +38,14 @@ async function createCollaborationInvite(collaborationID, email, role, invitedBy
 
 // Invite a user to a collaboration function
 
-async function createCollaboration(name, description, mainUserID) {
+async function createCollaboration(name, description, icon, mainUserID) {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
         // Create the collaboration
-        const collaborationSQL = `INSERT INTO COLLABORATION (name, description, main_user_id) VALUES (?, ?, ?)`;
-        const [collaborationResult] = await connection.query(collaborationSQL, [name, description, mainUserID]);
+        const collaborationSQL = `INSERT INTO COLLABORATION (name, description, icon, main_user_id) VALUES (?, ?, ?, ?)`;
+        const [collaborationResult] = await connection.query(collaborationSQL, [name, description, icon, mainUserID]);
         const collaborationID = collaborationResult.insertId;
 
         // Add the creator to the USER_COLLABORATION table as the 'owner'
@@ -105,10 +105,10 @@ async function getCollaborationByID(collaborationID) {
 }
 
 // UPDATE A COLLABORATION's NAME and DESCRIPTION
-async function updateCollaboration(collaborationID, name, description, mainUserID) {
+async function updateCollaboration(collaborationID, name, description, icon, mainUserID) {
     try {
-        const sql = 'UPDATE COLLABORATION SET name = ?, description = ? WHERE collaboration_id = ? AND main_user_id = ?';
-        const [result] = await pool.query(sql, [name, description, collaborationID, mainUserID]);
+        const sql = 'UPDATE COLLABORATION SET name = ?, description = ?, icon = ? WHERE collaboration_id = ? AND main_user_id = ?';
+        const [result] = await pool.query(sql, [name, description, icon, collaborationID, mainUserID]);
         if (result.affectedRows === 0) return null;
         return getCollaborationByID(collaborationID);
     } catch (error) {

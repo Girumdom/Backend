@@ -181,6 +181,37 @@ router.post('/base64/bulk', async (req, res) => {
   }
 });
 
+// POST /api/images/url/bulk - Save Cloudinary URLs directly to DB
+router.post('/url/bulk', async (req, res) => {
+  try {
+    const { memory_id, image_urls } = req.body;
+    
+    if (!memory_id || !image_urls || !Array.isArray(image_urls)) {
+      return res.status(400).json({ error: 'Invalid format' });
+    }
+
+    const createdImages = [];
+    
+    // We just insert the URLs. No uploading needed! Super fast.
+    for (const url of image_urls) {
+      const image = await createImage({
+        filename: `mobile-upload-${Date.now()}`,
+        file_path: url, 
+        file_size: 0, // We don't know the size, but it doesn't matter for display
+        memory_id: memory_id,
+        user_id: req.user?.id || 1
+      });
+      createdImages.push(image);
+    }
+
+    res.status(201).json({ message: 'Images linked successfully', images: createdImages });
+
+  } catch (error) {
+    console.error('URL Bulk error:', error);
+    res.status(500).json({ error: 'Failed to link images' });
+  }
+});
+
 router.post('/multiple', uploadArray, async (req, res) => {
     try {
       if (!req.files || req.files.length === 0) {

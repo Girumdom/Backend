@@ -1,4 +1,5 @@
 const pool = require('./pool');
+const { getAllRemindersByUserID } = require('./reminder');
 
 // helper function for permissions
 async function getUserRoleInCollaboration(userID, collaborationID) {
@@ -356,7 +357,7 @@ async function getSeniorsByCaretakerID(caretakerId) {
 
 async function getSeniorDetails(caretakerId, seniorId) {
     try {
-        // 1. Verify Permission & Get Basic Info (Unchanged)
+        // 1. Verify Permission & Get Basic Info
         const infoSql = `
             SELECT 
                 u.user_id, u.fullname, u.email, u.profile_picture,
@@ -370,11 +371,10 @@ async function getSeniorDetails(caretakerId, seniorId) {
         `;
         
         const [infoRows] = await pool.query(infoSql, [caretakerId, seniorId]);
-        
         if (infoRows.length === 0) return null;
         const senior = infoRows[0];
 
-        // 2. Get Senior's Memories (Unchanged)
+        // 2. Get Memories
         const memorySql = `
             SELECT m.*, a.file_path as audio_url 
             FROM MEMORY m
@@ -384,24 +384,17 @@ async function getSeniorDetails(caretakerId, seniorId) {
         `;
         const [memories] = await pool.query(memorySql, [seniorId]);
 
-        // 3. Enrich Memories with Images
-        // We loop through each memory and fetch its photos
+        // 3. Enrich Memories
         for (let memory of memories) {
             const [images] = await pool.query(
                 'SELECT file_path FROM PHOTO_IMAGE WHERE memory_id = ?', 
                 [memory.memory_id]
             );
-            memory.images = images; // Attach the array of images to the memory object
+            memory.images = images; 
         }
 
-        // 4. Get Senior's Reminders (Updated for correct column name)
-        const reminderSql = `
-            SELECT * FROM REMINDER 
-            WHERE created_by_user_id = ? 
-            AND reminder_date >= NOW()
-            ORDER BY reminder_date ASC
-        `;
-        const [reminders] = await pool.query(reminderSql, [seniorId]);
+        // 4. Get Reminders 
+        const reminders = await getAllRemindersByUserID(seniorId);
 
         return { ...senior, memories, reminders };
 

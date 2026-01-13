@@ -3,6 +3,8 @@ const { getImagesByMemoryID } = require('../connections/photoImage');
 const express = require('express');
 const router = express.Router(); 
 const verifyToken = require('../middleware/auth');
+const { createMemoryTTS } = require('../connections/tts');
+const { getVoiceByID, getUserByID } = require('../connections/users');
 
 router.use(express.json());
 
@@ -124,6 +126,87 @@ router.delete('/:memory_id', verifyToken, async(req, res) => {
         res.status(204).send();
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete memory.' });
+    }
+});
+
+// POST /memory/create-with-audio
+router.post('/create-with-audio', verifyToken, async (req, res) => {
+    try {
+        const { title, content, date_of_event, voice_settings } = req.body;
+        const creator_id = req.user.user_id;
+        const user_id = req.body.user_id || creator_id; // Allow creating for others if needed
+
+        // 1. Validation
+        if (!title || !content || !date_of_event) {
+            return res.status(400).json({ error: "Title, Content, and Date are required" });
+        }
+
+        // 2. Create the Memory Record (Database)
+        const memory = await createMemory(title, content, user_id, creator_id, date_of_event);
+        
+        if (!memory) {
+            throw new Error("Memory creation failed in database");
+        }
+
+        const memoryId = memory.memory_id || memory.id;
+
+        // 3. Handle Audio / Voice Cloning (Fire and Forget)
+        if (content && voice_settings) {
+            
+            (async () => {
+                try {
+                    let targetVoiceUrl = null;
+
+                    // CHECK: Did the user choose a specific cloned voice?
+                    if (voice_settings.use_cloned_voice) {
+                         
+                         // A. Try specific Voice ID from Library
+                         if (voice_settings.voice_id) {
+                             const voiceRecord = await getVoiceByID(voice_settings.voice_id);
+                             if (voiceRecord) {
+                                 targetVoiceUrl = voiceRecord.sample_url;
+                                 console.log(`[TTS] Using library voice: ${voiceRecord.voice_name}`);
+                             }
+                         } 
+                         
+                         // B. SAFETY FALLBACK: Use User's Main Profile Voice
+                         if (!targetVoiceUrl) {
+                             const user = await getUserByID(creator_id);
+                             if (user && user.voice_sample_url) {
+                                 console.log(`[TTS] Using fallback profile voice for User ${creator_id}`);
+                                 targetVoiceUrl = user.voice_sample_url;
+                             } else {
+                                 console.warn(`[TTS] No voice found for User ${creator_id}. Cloning impossible.`);
+                             }
+                         }
+                    } 
+                    
+                    // TRIGGER THE TTS SERVICE
+                    await createMemoryTTS(
+                        memoryId, 
+                        content, 
+                        creator_id,
+                        targetVoiceUrl, // If null, createMemoryTTS will use Standard Voice
+                        voice_settings.language_code
+                    );
+                    console.log(`Audio generation started for Memory ${memoryId}`);
+
+                } catch (bgError) {
+                    console.error(`Background Audio Error for Memory ${memoryId}:`, bgError);
+                }
+            })();
+        }
+
+        // 4. Return Success immediately
+        // The frontend receives the ID and can now start uploading images in parallel
+        res.status(201).json({ 
+            message: "Memory created successfully", 
+            memory_id: memoryId 
+        });
+
+    } catch (error) {
+        console.error("Create With Audio Error:", error);
+        res.status(500).json({ error: "Failed to create memory" });
     }
 });
 

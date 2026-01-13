@@ -165,6 +165,68 @@ async function updateUserPassword(userId, newPasswordHash) { // function to upda
     await pool.execute(sql, [newPasswordHash, userId]);
 }
 
+async function updateUserVoiceUrl(userId, voiceUrl) {
+    try {
+        // update the user's row with the cloudinary url of the voice sample
+        const sql = "UPDATE USER SET voice_sample_url = ? WHERE user_id = ?";
+        await pool.query(sql, [voiceUrl, userId]);
+    } catch (error) {
+        console.error('Error in updateUserVoiceUrl:', error);
+        throw new Error('Failed to update user voice URL');
+    }
+}
+
+// NEW FUNCTIONS FOR USER_VOICES TABLE
+
+// Add a new voice to the library
+async function addUserVoice(user_id, voice_name, sample_url) {
+    try {
+        const sql = `INSERT INTO USER_VOICES (user_id, voice_name, sample_url) VALUES (?, ?, ?)`;
+        const [result] = await pool.query(sql, [user_id, voice_name, sample_url]);
+        return { voice_id: result.insertId, voice_name, sample_url };
+    } catch (error) {
+        console.error('Error adding user voice:', error);
+        throw new Error('Failed to add voice');
+    }
+}
+
+// Get all active voices for a user
+async function getUserVoices(user_id) {
+    try {
+        const sql = `SELECT voice_id, voice_name, sample_url FROM USER_VOICES WHERE user_id = ? AND is_active = TRUE`;
+        const [rows] = await pool.query(sql, [user_id]);
+        return rows;
+    } catch (error) {
+        console.error('Error fetching user voices:', error);
+        throw new Error('Failed to fetch voices');
+    }
+}
+
+// Get a specific voice by its ID
+async function getVoiceByID(voice_id) {
+    try {
+        const sql = `SELECT * FROM USER_VOICES WHERE voice_id = ?`;
+        const [rows] = await pool.query(sql, [voice_id]);
+        return rows[0];
+    } catch (error) {
+        console.error('Error fetching voice by ID:', error);
+        throw new Error('Failed to fetch voice');
+    }
+}
+
+// Delete (soft delete) a voice
+async function deleteUserVoice(voice_id, user_id) {
+    try {
+        // We verify user_id to ensure they own the voice they are deleting
+        const sql = `UPDATE USER_VOICES SET is_active = FALSE WHERE voice_id = ? AND user_id = ?`;
+        await pool.query(sql, [voice_id, user_id]);
+        return true;
+    } catch (error) {
+        console.error('Error deleting voice:', error);
+        throw new Error('Failed to delete voice');
+    }
+}
+
 // END OF USER FUNCTIONS
 module.exports = {
     getAllUsers,
@@ -178,5 +240,10 @@ module.exports = {
     deleteResetTokens,
     saveResetToken,
     getResetToken,
-    updateUserPassword
+    updateUserPassword,
+    updateUserVoiceUrl,
+    addUserVoice,
+    getUserVoices,
+    getVoiceByID,
+    deleteUserVoice
 };

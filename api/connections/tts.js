@@ -4,7 +4,7 @@ const { generateClonedAudio } = require('../connections/voiceEngine');
 const { cloudinary } = require('../connections/cloudinary');
 
 // YOUR CUSTOM API URL
-const CUSTOM_TTS_API_URL = "https://cuhgrel-nemo-tts-api.hf.space/synthesize/";
+const CUSTOM_TTS_API_URL = "https://cuhgrel-girumdom-tts-api.hf.space/synthesize/";
 
 // 1. HELPER: Create Audio Record in DB
 async function createAudio({ filename, file_path, file_size, duration, memory_id, uploaded_by_user_id }) {

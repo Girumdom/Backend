@@ -5,8 +5,42 @@ const router = express.Router();
 const verifyToken = require('../middleware/auth');
 const { createMemoryTTS } = require('../connections/tts');
 const { getVoiceByID, getUserByID } = require('../connections/users');
+const { transcribeAudio } = require('../connections/voiceEngine');
+const { uploadAudio } = require('../middleware/uploadAudio');
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
 
 router.use(express.json());
+
+// POST - /api/memory/transcribe
+router.post('/transcribe', verifyToken, uploadAudio.single('audio_file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "No audio file provided" });
+
+        // 1. Upload temp file to Cloudinary (Whisper needs a URL)
+        // We use resource_type: "video" because Cloudinary treats audio as video
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            resource_type: "video", 
+            folder: "temp_transcription",
+        });
+
+        // 2. Call the AI Model
+        const text = await transcribeAudio(result.secure_url);
+
+        // 3. Cleanup (Delete temp files)
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        // Optional: Delete from Cloudinary to save space, or keep as a log
+        await cloudinary.uploader.destroy(result.public_id, { resource_type: 'video' });
+
+        // 4. Send text back to Frontend
+        res.json({ text: text });
+
+    } catch (error) {
+        // Cleanup local file on error
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: "Transcription failed" });
+    }
+});
 
 async function enrichMemoryWithImages(memory) {
     if (!memory) return null;

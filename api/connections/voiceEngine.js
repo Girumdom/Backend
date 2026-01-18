@@ -1,7 +1,9 @@
 const { Client } = require('@gradio/client');
+const axios = require('axios');
 
 // Your Cloning Space
 const CLONING_SPACE_ID = "cuhgrel/Girumdom-Voice-Cloning";
+const TRANSCRIPTION_SPACE_ID = "openai/whisper";
 
 // MAP: Your App Codes -> What Hugging Face Expects
 const LANGUAGE_MAP = {
@@ -61,4 +63,35 @@ async function generateClonedAudio(text, referenceAudioUrl, languageCode = "en")
     }
 }
 
-module.exports = { generateClonedAudio };
+async function transcribeAudio(audioUrl) {
+    try {
+        console.log(`[ASR] Connecting to Whisper Space (${TRANSCRIPTION_SPACE_ID})...`);
+        
+        // A. Fetch the file as a Blob (Gradio requires the actual file data, not just a URL)
+        // We use the native 'fetch' API available in Node.js 18+
+        const response = await fetch(audioUrl);
+        const audioBlob = await response.blob();
+
+        // B. Connect to the Space
+        const client = await Client.connect(TRANSCRIPTION_SPACE_ID);
+        
+        // C. Send to /predict
+        // "task": "transcribe" comes from the documentation you found
+        const result = await client.predict("/predict", { 
+            inputs: audioBlob, 
+            task: "transcribe" 
+        });
+
+        // The result is usually a string in the first output slot
+        const transcribedText = result.data[0];
+        console.log(`[ASR] Success: "${transcribedText.substring(0, 20)}..."`);
+        
+        return transcribedText;
+
+    } catch (error) {
+        console.error("ASR Error:", error?.message || error);
+        throw new Error("Failed to transcribe audio");
+    }
+}
+
+module.exports = { generateClonedAudio, transcribeAudio };

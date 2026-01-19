@@ -468,20 +468,36 @@ async function createReminderForSenior(collaborationId, reminderData, creatorId)
 
 // AUTO CREATE COLLABORATION FOR THE SENIOR WHEN THEY REGISTER
 async function createDefaultCollaboration(userId, fullname) {
+    const connection = await pool.getConnection(); // Use a connection for transaction
     try {
-        // Create a friendly name like "Juan Cruz's Care Team"
+        await connection.beginTransaction();
+
+        // 1. Create the Collaboration Group
         const defaultName = `${fullname}'s Collaboration`;
+        const sqlCreate = `INSERT INTO COLLABORATION (name, main_user_id) VALUES (?, ?)`;
         
-        const sql = `INSERT INTO COLLABORATION (collaboration_name, main_user_id) VALUES (?, ?)`;
+        const [result] = await connection.query(sqlCreate, [defaultName, userId]);
+        const newCollaborationId = result.insertId;
+
+        // 2. Add the user to the members table
+        const sqlMember = `
+            INSERT INTO USER_COLLABORATION (collaboration_id, user_id, role) 
+            VALUES (?, ?, 'owner')
+        `;
         
-        const [result] = await pool.query(sql, [defaultName, userId]);
+        await connection.query(sqlMember, [newCollaborationId, userId]);
+
+        await connection.commit();
         
-        console.log(`Auto-created collaboration for user ${userId}: ${defaultName}`);
-        return result.insertId;
+        console.log(`Auto-created collaboration ${newCollaborationId} for user ${userId}`);
+        return newCollaborationId;
+
     } catch (error) {
+        await connection.rollback();
         console.error("Error creating default collaboration:", error);
-        // We don't want to break the signup if this fails, so we just log it
         return null; 
+    } finally {
+        connection.release();
     }
 }
 

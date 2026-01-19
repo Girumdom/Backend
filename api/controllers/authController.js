@@ -36,8 +36,14 @@ router.post('/signup', async (req, res) => {
         }
 
         // If the new user is a Senior, give them a collaboration immediately
-        if (user.role === 'Elderly') {
-            await createDefaultCollaboration(user.user_id, user.fullname);
+        if (role === 'Elderly') {
+            console.log("Senior role detected. Creating default collaboration...");
+            
+            // Ensure we use the correct ID. 
+            // Check if your createUser returns 'user_id' or 'id' or 'insertId'
+            const userIdToUse = user.user_id || user.id || user.insertId;
+            
+            await createDefaultCollaboration(userIdToUse, fullname);
         }
 
         res.status(201).json({

@@ -3,7 +3,7 @@ const axios = require('axios');
 
 // Your Cloning Space
 const CLONING_SPACE_ID = "cuhgrel/Girumdom-Voice-Cloning";
-const TRANSCRIPTION_SPACE_ID = "openai/whisper";
+const TRANSCRIPTION_SPACE_ID = "distil-whisper/distil-large-v3";
 
 // MAP: Your App Codes -> What Hugging Face Expects
 const LANGUAGE_MAP = {

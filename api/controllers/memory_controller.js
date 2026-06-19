@@ -10,7 +10,6 @@ const { transcribeAudio } = require('../connections/voiceEngine');
 const { uploadAudio } = require('../middleware/uploadAudio');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
-const { createImage } = require('../connections/photoImage');
 
 router.use(express.json());
 

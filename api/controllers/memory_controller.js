@@ -9,6 +9,7 @@ const { transcribeAudio } = require('../connections/voiceEngine');
 const { uploadAudio } = require('../middleware/uploadAudio');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
+const { createImage } = require('../connections/photoImage');
 
 router.use(express.json());
 
@@ -183,6 +184,22 @@ router.post('/create-with-audio', verifyToken, async (req, res) => {
         }
 
         const memoryId = memory.memory_id || memory.id;
+
+        if (Array.isArray(image_urls) && image_urls.length > 0) {
+            try {
+                await Promise.all(
+                    image_urls.map(url => createImage({
+                        filename: `memory-${memoryId}-${Date.now()}`,
+                        file_path: url,
+                        file_size: 0,
+                        memory_id: memoryId,
+                        user_id: creator_id
+                    }))
+                );
+            } catch (imgErr) {
+                console.error(`Failed to link images for Memory ${memoryId}:`, imgErr);
+            }
+        }
 
         // 3. Handle Audio / Voice Cloning (Fire and Forget)
         if (content && voice_settings) {

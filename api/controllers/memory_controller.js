@@ -2,6 +2,7 @@ const { getMemoryByUserID, getMemoryByID, createMemory, updateMemory, deleteMemo
 const { getImagesByMemoryID } = require('../connections/photoImage');
 const express = require('express');
 const router = express.Router(); 
+const { createImage } = require('../connections/photoImage');
 const verifyToken = require('../middleware/auth');
 const { createMemoryTTS } = require('../connections/tts');
 const { getVoiceByID, getUserByID } = require('../connections/users');
@@ -167,16 +168,16 @@ router.delete('/:memory_id', verifyToken, async(req, res) => {
 // POST /memory/create-with-audio
 router.post('/create-with-audio', verifyToken, async (req, res) => {
     try {
-        const { title, content, date_of_event, voice_settings } = req.body;
+        // 1. FIX: Extract image_urls from req.body
+        const { title, content, date_of_event, voice_settings, image_urls } = req.body; 
         const creator_id = req.user.user_id;
-        const user_id = req.body.user_id || creator_id; // Allow creating for others if needed
+        const user_id = req.body.user_id || creator_id; 
 
-        // 1. Validation
         if (!title || !content || !date_of_event) {
             return res.status(400).json({ error: "Title, Content, and Date are required" });
         }
 
-        // 2. Create the Memory Record (Database)
+        // 2. Create the Memory Record
         const memory = await createMemory(title, content, user_id, creator_id, date_of_event);
         
         if (!memory) {
@@ -203,15 +204,11 @@ router.post('/create-with-audio', verifyToken, async (req, res) => {
 
         // 3. Handle Audio / Voice Cloning (Fire and Forget)
         if (content && voice_settings) {
-            
             (async () => {
                 try {
                     let targetVoiceUrl = null;
 
-                    // CHECK: Did the user choose a specific cloned voice?
                     if (voice_settings.use_cloned_voice) {
-                         
-                         // A. Try specific Voice ID from Library
                          if (voice_settings.voice_id) {
                              const voiceRecord = await getVoiceByID(voice_settings.voice_id);
                              if (voiceRecord) {
@@ -220,7 +217,6 @@ router.post('/create-with-audio', verifyToken, async (req, res) => {
                              }
                          } 
                          
-                         // B. SAFETY FALLBACK: Use User's Main Profile Voice
                          if (!targetVoiceUrl) {
                              const user = await getUserByID(creator_id);
                              if (user && user.voice_sample_url) {
@@ -232,12 +228,11 @@ router.post('/create-with-audio', verifyToken, async (req, res) => {
                          }
                     } 
                     
-                    // TRIGGER THE TTS SERVICE
                     await createMemoryTTS(
                         memoryId, 
                         content, 
                         creator_id,
-                        targetVoiceUrl, // If null, createMemoryTTS will use Standard Voice
+                        targetVoiceUrl, 
                         voice_settings.language_code
                     );
                     console.log(`Audio generation started for Memory ${memoryId}`);
@@ -248,8 +243,6 @@ router.post('/create-with-audio', verifyToken, async (req, res) => {
             })();
         }
 
-        // 4. Return Success immediately
-        // The frontend receives the ID and can now start uploading images in parallel
         res.status(201).json({ 
             message: "Memory created successfully", 
             memory_id: memoryId 
